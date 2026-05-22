@@ -1,0 +1,44 @@
+{
+  "name": "lari-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "db:init": "tsx src/lib/db/initialize.ts",
+    "test:indicators": "tsx --test src/lib/indicators/*.test.ts",
+    "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/phase1/*.test.ts",
+    "test:services": "tsx --test src/lib/services/*.test.ts",
+    "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.1.2",
+    "better-sqlite3": "^12.10.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.468.0",
+    "next": "^15.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.10",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.3.5",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.22.3",
+    "typescript": "^5.7.3"
+  }
+}

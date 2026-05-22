@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Segoe UI", sans-serif;
+  --background: 221 72% 7%;
+  --foreground: 214 45% 94%;
+  --border: 214 45% 88%;
+  --ring: 222 92% 72%;
+  --primary: 217 90% 70%;
+  --primary-foreground: 216 45% 97%;
+  --muted: 216 30% 18%;
+  --muted-foreground: 215 28% 76%;
+  --accent: 190 92% 71%;
+  --accent-foreground: 216 45% 97%;
+  --destructive: 2 90% 67%;
+  --destructive-foreground: 216 45% 97%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #061225;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(circle at 44% 0%, rgba(143, 105, 255, 0.58), transparent 29%),
+    radial-gradient(circle at 75% 34%, rgba(105, 210, 238, 0.55), transparent 26%),
+    radial-gradient(circle at 6% 52%, rgba(117, 208, 240, 0.52), transparent 25%),
+    linear-gradient(135deg, #061125 0%, #0b1c35 42%, #101429 100%);
+  font-family: var(--font-ui);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  color: white;
+  background: rgba(117, 153, 255, 0.55);
+}
+
+@layer utilities {
+  .glass-surface {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.055)),
+      rgba(13, 27, 49, 0.46);
+    border: 1px solid rgba(221, 235, 255, 0.22);
+    box-shadow:
+      0 28px 80px rgba(1, 7, 18, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(18px) saturate(138%);
+    -webkit-backdrop-filter: blur(18px) saturate(138%);
+    contain: paint;
+    isolation: isolate;
+  }
+
+  .glass-panel {
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+  }
+
+  .glass-card {
+    box-shadow:
+      0 20px 58px rgba(1, 7, 18, 0.36),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-highlight {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-highlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(130deg, rgba(255, 255, 255, 0.22), transparent 28%),
+      radial-gradient(circle at 78% 2%, rgba(123, 219, 255, 0.22), transparent 34%);
+    opacity: 0.9;
+  }
+
+  .glass-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  .scroll-optimized-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 340px;
+  }
+
+  .chart-grid {
+    background-image:
+      linear-gradient(rgba(216, 232, 255, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(216, 232, 255, 0.08) 1px, transparent 1px);
+    background-size: 100px 66px;
+  }
+}
