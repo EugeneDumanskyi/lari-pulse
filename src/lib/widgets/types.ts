@@ -1,6 +1,33 @@
 import type { CandleRecord } from "@/lib/db/types";
+import type { CorrelationPairResult } from "@/lib/correlations/types";
 
 export type WidgetSeverity = "low" | "medium" | "high";
+
+export type MarketRegimeBias =
+  | "risk_on"
+  | "risk_off_pressure"
+  | "mixed"
+  | "transitioning"
+  | "unstable"
+  | "neutral";
+
+export interface MarketRegimeHint {
+  id: string;
+  bias: MarketRegimeBias;
+  confidence: number;
+  summary: string;
+  drivers: string[];
+  updatedAt: string;
+}
+
+export interface WidgetMarketContext {
+  timeframeCandles?: Record<string, CandleRecord[]>;
+  assetCandles?: Record<string, Record<string, CandleRecord[]>>;
+  correlations?: CorrelationPairResult[];
+  regimeHints?: MarketRegimeHint[];
+  latestCandleUpdatedAt?: string;
+  metadata?: Record<string, unknown>;
+}
 
 export interface SourceRef {
   source: string;
@@ -29,7 +56,7 @@ export interface WidgetContext {
   timeframe?: string;
   candles?: CandleRecord[];
   indicators?: Record<string, unknown>;
-  marketContext?: Record<string, unknown>;
+  marketContext?: WidgetMarketContext;
   now: Date;
 }
 

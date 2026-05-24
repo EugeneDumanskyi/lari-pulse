@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest, canAccessSymbol } from "@/lib/auth/access";
 import { runPhase1Refresh } from "@/lib/services/phase1RefreshService";
 
 export const runtime = "nodejs";
@@ -58,9 +59,22 @@ async function readOptionalJson(request: NextRequest): Promise<CollectRunRequest
 
 export async function POST(request: NextRequest) {
   try {
+    const session = getSessionFromRequest(request);
     const body = await readOptionalJson(request);
+    const symbols = asOptionalStringArray(body.symbols, "symbols");
+
+    if (symbols?.some((symbol) => !canAccessSymbol(session, symbol.toUpperCase()))) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "One or more symbols are locked for the current access level"
+        },
+        { status: 403 }
+      );
+    }
+
     const result = await runPhase1Refresh({
-      symbols: asOptionalStringArray(body.symbols, "symbols"),
+      symbols,
       timeframes: asOptionalStringArray(body.timeframes, "timeframes"),
       limit: asOptionalLimit(body.limit),
       calculateWidgets: asOptionalBoolean(body.calculateWidgets, "calculateWidgets")

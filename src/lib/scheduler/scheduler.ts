@@ -3,11 +3,13 @@ import { appConfig } from "@/lib/config/appConfig";
 import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import {
+  getLatestSourceRuns,
   insertSourceRun,
   updateSourceRun
 } from "@/lib/db/repositories/sourceRunsRepository";
 import type { SourceRunStatus } from "@/lib/db/types";
 import { runPhase1Refresh, type Phase1RefreshResult } from "@/lib/services/phase1RefreshService";
+import { runPhase2Refresh, type Phase2RefreshResult } from "@/lib/services/phase2RefreshService";
 
 export interface SchedulerCycleResult {
   status: "ok" | "partial" | "error" | "skipped";
@@ -16,6 +18,7 @@ export interface SchedulerCycleResult {
   reason: string;
   sourceRunId?: number;
   refresh?: Phase1RefreshResult;
+  phase2Refresh?: Phase2RefreshResult;
   message?: string;
 }
 
@@ -26,6 +29,10 @@ export interface SchedulerState {
   intervalSeconds: number;
   lastRunAt: string | null;
   lastStatus: SchedulerCycleResult["status"] | null;
+  phase2Enabled: boolean;
+  phase2IntervalSeconds: number;
+  lastPhase2RunAt: string | null;
+  lastPhase2Status: SchedulerCycleResult["status"] | null;
 }
 
 type TimerHandle = ReturnType<typeof setInterval>;
@@ -37,6 +44,8 @@ let timer: TimerHandle | null = null;
 let running = false;
 let lastRunAt: string | null = null;
 let lastStatus: SchedulerCycleResult["status"] | null = null;
+let lastPhase2RunAt: string | null = null;
+let lastPhase2Status: SchedulerCycleResult["status"] | null = null;
 
 function intervalSeconds() {
   const value = appConfig.collectIntervalSeconds;
@@ -46,6 +55,40 @@ function intervalSeconds() {
   }
 
   return Math.floor(value);
+}
+
+function phase2IntervalSeconds() {
+  const value = appConfig.phase2RefreshIntervalSeconds;
+
+  if (!Number.isFinite(value) || value < 60 * 60) {
+    return 24 * 60 * 60;
+  }
+
+  return Math.floor(value);
+}
+
+function latestPersistedPhase2RunAt(db: Database.Database) {
+  const latestFredSuccess = getLatestSourceRuns(db, {
+    source: "fred",
+    collectorId: "fred_daily_series",
+    limit: 8
+  }).find((run) => run.status === "success" && run.finishedAt);
+
+  return latestFredSuccess?.finishedAt ?? null;
+}
+
+function isPhase2Due(now: Date, db: Database.Database) {
+  if (!appConfig.phase2SchedulerEnabled) {
+    return false;
+  }
+
+  const latestRunAt = lastPhase2RunAt ?? latestPersistedPhase2RunAt(db);
+
+  if (!latestRunAt) {
+    return true;
+  }
+
+  return now.getTime() - new Date(latestRunAt).getTime() >= phase2IntervalSeconds() * 1000;
 }
 
 function sourceRunStatus(status: SchedulerCycleResult["status"]): SourceRunStatus {
@@ -73,6 +116,48 @@ function summarizeRefresh(refresh: Phase1RefreshResult) {
   });
 }
 
+function summarizePhase2Refresh(refresh: Phase2RefreshResult | undefined) {
+  if (!refresh) {
+    return null;
+  }
+
+  return {
+    status: refresh.status,
+    collection: refresh.collection
+      ? {
+          status: refresh.collection.status,
+          sourceRunId: refresh.collection.sourceRunId,
+          candlesFetched: refresh.collection.candlesFetched,
+          candlesInsertedOrUpdated: refresh.collection.candlesInsertedOrUpdated,
+          errors: refresh.collection.errors
+        }
+      : null,
+    widgetPersistence: refresh.widgetPersistence
+      ? {
+          status: refresh.widgetPersistence.status,
+          widgetsRun: refresh.widgetPersistence.widgetsRun,
+          widgetsSaved: refresh.widgetPersistence.widgetsSaved,
+          warnings: refresh.widgetPersistence.warnings
+        }
+      : null
+  };
+}
+
+function mergeCycleStatuses(
+  phase1Status: SchedulerCycleResult["status"],
+  phase2Status?: SchedulerCycleResult["status"]
+): SchedulerCycleResult["status"] {
+  if (phase1Status === "error" || phase2Status === "error") {
+    return "error";
+  }
+
+  if (phase1Status === "partial" || phase2Status === "partial") {
+    return "partial";
+  }
+
+  return phase1Status;
+}
+
 export function getSchedulerState(): SchedulerState {
   return {
     enabled: appConfig.schedulerEnabled,
@@ -80,7 +165,11 @@ export function getSchedulerState(): SchedulerState {
     running,
     intervalSeconds: intervalSeconds(),
     lastRunAt,
-    lastStatus
+    lastStatus,
+    phase2Enabled: appConfig.phase2SchedulerEnabled,
+    phase2IntervalSeconds: phase2IntervalSeconds(),
+    lastPhase2RunAt,
+    lastPhase2Status
   };
 }
 
@@ -89,6 +178,7 @@ export async function runSchedulerCycle(
     reason?: string;
     db?: Database.Database;
     refresh?: () => Promise<Phase1RefreshResult>;
+    phase2Refresh?: () => Promise<Phase2RefreshResult>;
   } = {}
 ): Promise<SchedulerCycleResult> {
   const reason = options.reason ?? "scheduled";
@@ -124,14 +214,28 @@ export async function runSchedulerCycle(
 
   try {
     const refresh = await (options.refresh ?? runPhase1Refresh)();
+    const phase2Due = isPhase2Due(new Date(startedAt), db);
+    const phase2Refresh = phase2Due
+      ? await (options.phase2Refresh ?? (() => runPhase2Refresh({ db })))()
+      : undefined;
     const finishedAt = new Date().toISOString();
-    const status = refresh.status;
+    const status = mergeCycleStatuses(refresh.status, phase2Refresh?.status);
+
+    if (phase2Refresh) {
+      lastPhase2RunAt = startedAt;
+      lastPhase2Status = phase2Refresh.status;
+    }
 
     updateSourceRun(db, sourceRunId, {
       status: sourceRunStatus(status),
       finishedAt,
       errorMessage: status === "ok" ? null : "Scheduler refresh completed with errors",
-      metadataJson: summarizeRefresh(refresh)
+      metadataJson: JSON.stringify({
+        phase1: JSON.parse(summarizeRefresh(refresh)),
+        phase2: summarizePhase2Refresh(phase2Refresh),
+        phase2Due,
+        phase2Enabled: appConfig.phase2SchedulerEnabled
+      })
     });
 
     lastStatus = status;
@@ -142,7 +246,8 @@ export async function runSchedulerCycle(
       finishedAt,
       reason,
       sourceRunId,
-      refresh
+      refresh,
+      phase2Refresh
     };
   } catch (error) {
     const finishedAt = new Date().toISOString();
@@ -199,4 +304,6 @@ export function stopSchedulerForTests() {
   }
 
   running = false;
+  lastPhase2RunAt = null;
+  lastPhase2Status = null;
 }

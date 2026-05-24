@@ -1,10 +1,16 @@
+import type { AssetType, MarketDataSource } from "@/lib/config/marketTypes";
+
 export interface SymbolRecord {
   id: number;
   symbol: string;
-  assetType: string;
+  assetType: AssetType;
   baseAsset: string;
   quoteAsset: string;
-  source: string;
+  source: MarketDataSource;
+  displayName: string | null;
+  providerSymbol: string | null;
+  priceUnit: string | null;
+  metadataJson: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -77,4 +83,16 @@ export interface NewSourceRun {
   finishedAt?: string | null;
   errorMessage?: string | null;
   metadataJson?: string | null;
+}
+
+export interface WidgetSettingRecord {
+  id: number;
+  widgetId: string;
+  isEnabled: boolean;
+  updatedAt: string;
+}
+
+export interface NewWidgetSetting {
+  widgetId: string;
+  isEnabled: boolean;
 }

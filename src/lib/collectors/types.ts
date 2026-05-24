@@ -1,6 +1,5 @@
 import type { NewCandle } from "@/lib/db/types";
-
-export type MarketDataSource = "binance";
+import type { MarketDataSource } from "@/lib/config/marketTypes";
 
 export interface NormalizedCandle extends NewCandle {
   source: MarketDataSource;

@@ -17,7 +17,9 @@ Each widget:
 
 The system should help answer questions like:
 
-> Is something important changing for BTC, ETH or SOL right now?
+> Is something important changing for BTC, SOL, oil, gold, Nasdaq or the dollar right now?
+
+> Is the current environment risk-on, risk-off or mixed?
 
 > Is a bullish move confirmed by volume and multi-timeframe structure, or is it becoming overheated?
 
@@ -25,7 +27,7 @@ The system should help answer questions like:
 
 ## Scope
 
-The first release is a crypto-only signal system:
+The core is a crypto signal system:
 
 ```text
 collector → SQLite → indicator engine → widget engine → API → UI
@@ -42,7 +44,7 @@ No paid APIs
 No AI prediction layer
 ```
 
-It should be easy to run locally, easy to debug and easy to extend. Cross-market data (oil, gold, Nasdaq, DXY, rates) can be added later without changing the core pipeline.
+It should be easy to run locally, easy to debug and easy to extend. Cross-market intelligence (oil, gold, Nasdaq, S&P 500, dollar, rates, VIX) sits on the same pipeline and the same widget contract.
 
 ### Assets
 
@@ -65,10 +67,11 @@ Assets are configuration, not code. Adding `BNBUSDT` or another pair should not 
 
 These cover short-term, swing and higher-timeframe structure.
 
-### Data Source
+### Data Sources
 
 ```text
 Binance Spot API (public klines, no key required)
+FRED CSV series (daily, no key required)
 ```
 
 Collectors fetch and normalize data. They do not contain signal logic.
@@ -101,7 +104,7 @@ Frontend:   Next.js, React, TypeScript, Tailwind CSS,
 Backend:    Next.js route handlers, TypeScript
 Database:   SQLite (better-sqlite3)
 Scheduler:  simple in-process interval
-Source:     Binance API
+Sources:    Binance API, FRED
 ```
 
 One Next.js project holds both the UI and the API.
@@ -174,6 +177,7 @@ src/
 
 ```text
 id, symbol, asset_type, base_asset, quote_asset, source,
+display_name, provider_symbol, price_unit, metadata_json,
 is_active, created_at, updated_at
 ```
 
@@ -196,6 +200,14 @@ severity, summary, details_json, sources_json, created_at
 index(widget_id, symbol, timeframe, created_at)
 index(symbol, timeframe, created_at)
 ```
+
+### widget_settings
+
+```text
+id, widget_id (unique), is_enabled, updated_at
+```
+
+Stores which widgets the instance shows. Widgets missing from the table fall back to the catalog default.
 
 ### source_runs
 
@@ -222,6 +234,7 @@ export interface WidgetContext {
   timeframe?: string;
   candles?: Candle[];
   indicators?: Record<string, unknown>;
+  marketContext?: WidgetMarketContext;
   now: Date;
 }
 
@@ -301,6 +314,88 @@ Do short-term, medium-term and higher-timeframe signals agree or conflict?
 
 Inputs: trend and momentum per timeframe across 15m, 1h, 4h and 1d.
 
+## Cross-Market Intelligence
+
+### Assets
+
+| Symbol | FRED series | Note |
+| --- | --- | --- |
+| `XAUUSD` | `NASDAQQGLDI` | Gold price index proxy, not spot XAU/USD |
+| `WTI` | `DCOILWTICO` | WTI crude oil |
+| `NASDAQ100` | `NASDAQ100` | Nasdaq 100 |
+| `SPX` | `SP500` | S&P 500 |
+| `DXY` | `DTWEXBGS` | Broad dollar index proxy, not ICE DXY |
+| `US10Y` | `DGS10` | 10-year Treasury yield |
+| `VIX` | `VIXCLS` | CBOE volatility index |
+
+Normalized LariPulse symbols are kept separate from provider tickers through `symbols.provider_symbol`. FRED observations are stored as daily candles in the shared `candles` table.
+
+### Flow
+
+```text
+Binance + FRED
+  ↓
+Collectors
+  ↓
+SQLite candles
+  ↓
+Correlation engine (src/lib/correlations, correlationService)
+  ↓
+WidgetMarketContext (src/lib/widgets/marketContext.ts)
+  ↓
+Cross-market widget engines
+  ↓
+GET /api/widgets/cross-market?timeframe=1d
+```
+
+### Market Context
+
+```ts
+export interface WidgetMarketContext {
+  timeframeCandles?: Record<string, Candle[]>;
+  assetCandles?: Record<string, Record<string, Candle[]>>;
+  correlations?: CorrelationPairResult[];
+  regimeHints?: MarketRegimeHint[];
+  latestCandleUpdatedAt?: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
+Every multi-asset widget reads this one typed shape. Engines never build their own cross-market context.
+
+### Correlations
+
+```text
+close-to-close percentage returns
+date-aligned rolling Pearson correlation
+short-term compounded-return divergence
+volatility-adjusted latest movement
+```
+
+Configured pairs: BTC/Nasdaq 100, BTC/DXY, ETH/Nasdaq 100, SOL/Nasdaq 100, Gold/DXY, Gold/US10Y, Oil/US10Y and Nasdaq 100/US10Y. Correlation is descriptive and never implies causation.
+
+### Widgets
+
+```text
+macro_risk_pulse           broad risk-on/risk-off read across crypto, equities, dollar, yields, gold and oil
+dollar_pressure            whether dollar strength or weakness is pressuring crypto, equities or gold
+gold_risk_hedge            whether gold acts as a hedge, an inflation hedge or a weak defensive asset
+oil_inflation_pressure     whether oil is adding inflation pressure or market stress
+nasdaq_crypto_correlation  whether BTC, ETH and SOL move with Nasdaq or diverge
+cross_market_divergence    related markets that stop confirming each other
+risk_regime                summary regime classification
+```
+
+Shared trend helpers live next to the engines. Correlation math stays in the correlation layer and services, never in routes or components.
+
+### Scheduling
+
+Cross-market refresh is optional (`PHASE2_SCHEDULER_ENABLED`) and runs on its own interval (`PHASE2_REFRESH_INTERVAL_SECONDS`, daily by default). The due check reads the latest successful FRED run, so restarts do not cause duplicate collection. A refresh collects FRED data, recalculates correlations, runs the cross-market widgets and stores `CROSS_MARKET` widget results.
+
+## Access and Visibility
+
+A local access model limits what anonymous visitors see: BTC and the core widgets. The local admin unlocks all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
+
 ## Confidence
 
 Confidence falls when:
@@ -325,6 +420,14 @@ GET  /api/runtime/status
 GET  /api/widgets/latest?symbol=SOLUSDT
 GET  /api/widgets/latest?symbol=SOLUSDT&timeframe=1h
 GET  /api/widgets/history?symbol=SOLUSDT&widgetId=trend_strength
+GET  /api/widgets/cross-market?timeframe=1d
+GET  /api/markets
+GET  /api/markets/overview?symbol=BTCUSDT
+GET  /api/settings/widgets
+PUT  /api/settings/widgets
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/session
 POST /api/collect/run
 ```
 
@@ -358,7 +461,10 @@ Market summary panel
 Price chart
 Widget grid
 Widget details drawer
+Cross-market section
 ```
+
+The sidebar also opens Markets (a read-only directory of every configured series with freshness, source notes and a compact chart) and Settings.
 
 Each widget card shows title, score, direction, confidence, severity, short summary, updated time and a details button. The details view shows the full summary, indicator values, source references, timestamps and any conflicts or warnings. Stale or missing data is always visible.
 
@@ -366,7 +472,7 @@ The interface is dark-mode-first with translucent glass panels, soft borders, a 
 
 ## Principles
 
-- **Deterministic first.** Signals come from price, volume, indicators, candle structure and support/resistance, not from model guesses.
+- **Deterministic first.** Signals come from price, volume, indicators, candle structure, support/resistance and correlations, not from model guesses.
 - **Explainable.** Every score is backed by `details`.
 - **Honest.** Outputs are analytical summaries, not predictions or financial advice.
 

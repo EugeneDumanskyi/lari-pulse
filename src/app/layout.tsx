@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "LariPulse",
-  description: "Explainable crypto signal intelligence for Phase 1 markets"
+  description: "Explainable market intelligence for investors and traders"
 };
 
 export default function RootLayout({

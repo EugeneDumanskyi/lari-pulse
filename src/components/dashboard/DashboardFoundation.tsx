@@ -6,20 +6,27 @@ import {
   AlertTriangle,
   BarChart3,
   ChevronDown,
+  DollarSign,
+  Flame,
+  Globe2,
   Layers,
   LineChart,
+  Lock,
   RefreshCw,
   Scale,
+  Shield,
   Zap
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import type {
   ApiEnvelope,
+  AuthSessionApi,
+  CrossMarketWidgetsApi,
   MarketCandleApi,
   MarketOverviewApi,
   RuntimeStatusApi,
   SymbolApi,
-  WidgetResultApi
+  WidgetResultApi,
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -39,11 +46,19 @@ const widgetMeta = {
   momentum_exhaustion: { title: "Momentum Exhaustion", icon: Zap },
   support_resistance_pressure: { title: "Support / Resistance Pressure", icon: Scale },
   volume_confirmation: { title: "Volume Confirmation", icon: BarChart3 },
-  multi_timeframe_alignment: { title: "Multi-Timeframe Alignment", icon: Layers }
+  multi_timeframe_alignment: { title: "Multi-Timeframe Alignment", icon: Layers },
+  macro_risk_pulse: { title: "Macro Risk Pulse", icon: Globe2 },
+  dollar_pressure: { title: "Dollar Pressure", icon: DollarSign },
+  gold_risk_hedge: { title: "Gold / Risk Hedge", icon: Shield },
+  oil_inflation_pressure: { title: "Oil Inflation Pressure", icon: Flame },
+  nasdaq_crypto_correlation: { title: "Nasdaq-Crypto Correlation", icon: LineChart },
+  cross_market_divergence: { title: "Cross-Market Divergence", icon: Scale },
+  risk_regime: { title: "Risk Regime", icon: Activity }
 } as const;
 
 type DashboardStatus = "loading" | "ready" | "error";
 type WarningTone = "amber" | "red" | "cyan";
+type Phase2Filter = "all" | "macro" | "correlation" | "divergence";
 
 interface DashboardWarning {
   id: string;
@@ -61,6 +76,17 @@ async function fetchApi<T>(url: string, signal?: AbortSignal) {
   }
 
   return body.data;
+}
+
+function emptyCrossMarketData(): CrossMarketWidgetsApi {
+  return {
+    timeframe: "1d",
+    results: [],
+    assetStatuses: [],
+    correlations: [],
+    warnings: [],
+    updatedAt: new Date().toISOString()
+  };
 }
 
 function formatPair(symbol: string) {
@@ -210,11 +236,25 @@ function DashboardWarnings({ warnings }: { warnings: DashboardWarning[] }) {
 function directionTone(direction: string) {
   const value = direction.toLowerCase();
 
-  if (value.includes("bull") || value.includes("support") || value.includes("confirmation")) {
+  if (
+    value.includes("bull") ||
+    value.includes("support") ||
+    value.includes("confirmation") ||
+    value.includes("risk_on") ||
+    value.includes("easing") ||
+    value.includes("outperforming")
+  ) {
     return "green";
   }
 
-  if (value.includes("bear") || value.includes("resistance") || value.includes("oversold")) {
+  if (
+    value.includes("bear") ||
+    value.includes("resistance") ||
+    value.includes("oversold") ||
+    value.includes("risk_off") ||
+    value.includes("pressure") ||
+    value.includes("underperforming")
+  ) {
     return "red";
   }
 
@@ -223,6 +263,163 @@ function directionTone(direction: string) {
 
 function widgetTitle(widgetId: string) {
   return widgetMeta[widgetId as keyof typeof widgetMeta]?.title ?? widgetId.replaceAll("_", " ");
+}
+
+function readableLabel(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function readableText(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function formatDetailNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue >= 1000) {
+    return formatCompact(value);
+  }
+
+  return formatNumber(value, absoluteValue < 10 ? 3 : 2);
+}
+
+function isPrimitiveDetail(value: unknown): value is string | number | boolean | null {
+  return value === null || ["string", "number", "boolean"].includes(typeof value);
+}
+
+function formatPrimitiveDetail(value: string | number | boolean | null) {
+  if (value === null) {
+    return "--";
+  }
+
+  if (typeof value === "number") {
+    return formatDetailNumber(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  return readableText(value);
+}
+
+function summarizeDetailArray(values: unknown[]) {
+  if (values.length === 0) {
+    return "None";
+  }
+
+  if (values.every(isPrimitiveDetail)) {
+    const visible = values.slice(0, 4).map(formatPrimitiveDetail).join(", ");
+    return values.length > 4 ? `${visible} +${values.length - 4} more` : visible;
+  }
+
+  const summaries = values.slice(0, 3).map((item) => {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const record = item as Record<string, unknown>;
+      const label = [record.label, record.id, record.symbol].find((entry): entry is string => typeof entry === "string");
+      const trend = [record.trend, record.direction].find((entry): entry is string => typeof entry === "string");
+
+      return [label, trend ? readableText(trend) : null].filter(Boolean).join(": ") || "Structured item";
+    }
+
+    return "Structured item";
+  });
+
+  return values.length > 3 ? `${summaries.join("; ")} +${values.length - 3} more` : summaries.join("; ");
+}
+
+function summarizeDetailObject(value: Record<string, unknown>) {
+  const entries = Object.entries(value).filter(([, item]) => item !== undefined);
+
+  if (entries.length === 0) {
+    return "No supporting values";
+  }
+
+  const symbolSummaries = entries
+    .filter(([, item]) => item && typeof item === "object" && !Array.isArray(item))
+    .slice(0, 4)
+    .map(([key, item]) => {
+      const record = item as Record<string, unknown>;
+      const trend = typeof record.trend === "string" ? readableText(record.trend) : null;
+      const direction = typeof record.direction === "string" ? readableText(record.direction) : null;
+      const change = typeof record.change5Pct === "number" ? `${formatDetailNumber(record.change5Pct)}%` : null;
+
+      return [key, trend ?? direction, change].filter(Boolean).join(": ");
+    });
+
+  if (symbolSummaries.length > 0) {
+    return entries.length > 4 ? `${symbolSummaries.join("; ")} +${entries.length - 4} more` : symbolSummaries.join("; ");
+  }
+
+  const primitiveSummaries = entries
+    .filter(([, item]) => isPrimitiveDetail(item))
+    .slice(0, 4)
+    .map(([key, item]) => `${readableLabel(key)}: ${formatPrimitiveDetail(item as string | number | boolean | null)}`);
+
+  if (primitiveSummaries.length > 0) {
+    return entries.length > 4 ? `${primitiveSummaries.join("; ")} +${entries.length - 4} more` : primitiveSummaries.join("; ");
+  }
+
+  return `${entries.length} structured ${entries.length === 1 ? "value" : "values"}`;
+}
+
+function formatDetailValue(value: unknown) {
+  if (isPrimitiveDetail(value)) {
+    return formatPrimitiveDetail(value);
+  }
+
+  if (Array.isArray(value)) {
+    return summarizeDetailArray(value);
+  }
+
+  if (value && typeof value === "object") {
+    return summarizeDetailObject(value as Record<string, unknown>);
+  }
+
+  return "--";
+}
+
+function detailRows(details: Record<string, unknown>) {
+  const priorityKeys = [
+    "scoreMeaning",
+    "direction",
+    "latestClose",
+    "ma7",
+    "ma30",
+    "priceVsMa30Pct",
+    "structure",
+    "drivers",
+    "conflicts",
+    "warnings",
+    "assets",
+    "correlations"
+  ];
+  const entries = Object.entries(details).filter(([, value]) => value !== undefined);
+  const sorted = entries.sort(([leftKey], [rightKey]) => {
+    const leftIndex = priorityKeys.indexOf(leftKey);
+    const rightIndex = priorityKeys.indexOf(rightKey);
+    const leftScore = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+    const rightScore = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+
+    if (leftScore !== rightScore) {
+      return leftScore - rightScore;
+    }
+
+    return leftKey.localeCompare(rightKey);
+  });
+
+  return sorted.slice(0, 7).map(([key, value]) => ({
+    key,
+    label: readableLabel(key),
+    value: formatDetailValue(value)
+  }));
 }
 
 function WidgetIcon({ widgetId }: { widgetId: string }) {
@@ -355,11 +552,12 @@ function WidgetResultCard({
   onSelect: () => void;
 }) {
   return (
-    <GlassCard className={cn("scroll-optimized-card p-5 [perspective:1200px]", selected ? "min-h-[420px]" : "min-h-[324px]")} selected={selected}>
+    <GlassCard className="scroll-optimized-card h-[430px] p-5 [perspective:1200px]" selected={selected}>
       <AnimatePresence initial={false} mode="wait">
         {selected ? (
           <motion.div
             animate={{ opacity: 1, rotateY: 0 }}
+            className="h-full"
             exit={{ opacity: 0, rotateY: -90 }}
             initial={{ opacity: 0, rotateY: 90 }}
             key="details"
@@ -370,6 +568,7 @@ function WidgetResultCard({
         ) : (
           <motion.div
             animate={{ opacity: 1, rotateY: 0 }}
+            className="h-full"
             exit={{ opacity: 0, rotateY: 90 }}
             initial={{ opacity: 0, rotateY: -90 }}
             key="summary"
@@ -394,7 +593,7 @@ function WidgetResultCardFront({
   const warnings = getWidgetWarnings(result);
 
   return (
-    <>
+    <div className="flex h-full flex-col">
       <div className="mb-5 flex items-start justify-between gap-4">
         <h3 className="max-w-[190px] text-sm font-semibold leading-5 text-white">{widgetTitle(result.widgetId)}</h3>
         <WidgetIcon widgetId={result.widgetId} />
@@ -444,8 +643,8 @@ function WidgetResultCardFront({
           ))}
         </div>
       ) : null}
-      <p className="line-clamp-3 min-h-[60px] text-xs leading-5 text-white/68">{result.summary}</p>
-      <div className="mt-5 flex items-center justify-between gap-3 text-xs text-white/58">
+      <p className="line-clamp-3 text-xs leading-5 text-white/68">{result.summary}</p>
+      <div className="mt-auto flex items-center justify-between gap-3 pt-5 text-xs text-white/58">
         <span>{formatTime(result.updatedAt)}</span>
         <button
           className="rounded-xl border border-white/14 bg-white/10 px-3 py-2 font-semibold text-white/82 transition hover:bg-white/16"
@@ -455,7 +654,7 @@ function WidgetResultCardFront({
           More details
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -467,11 +666,11 @@ function WidgetResultCardBack({
   onBack: () => void;
 }) {
   const warnings = getWidgetWarnings(result);
-  const detailEntries = Object.entries(result.details).slice(0, 5);
+  const details = detailRows(result.details);
   const primarySource = result.sources.at(0);
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <WidgetIcon widgetId={result.widgetId} />
@@ -502,7 +701,7 @@ function WidgetResultCardBack({
           <div className="mt-1 font-semibold capitalize text-white">{result.severity}</div>
         </div>
       </div>
-      <div className="space-y-4 text-sm leading-6 text-white/76">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-sm leading-6 text-white/76">
         {warnings.length > 0 ? (
           <section className="space-y-2">
             {warnings.map((warning) => (
@@ -520,19 +719,21 @@ function WidgetResultCardBack({
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/46">Summary</h4>
           <p className="line-clamp-4">{result.summary}</p>
         </section>
-        <section>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/46">Details</h4>
-          <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-            {detailEntries.map(([key, value]) => (
-              <div className="grid grid-cols-[92px_1fr] gap-3 px-3 py-2.5 text-xs" key={key}>
-                <span className="break-words text-white/58">{key}</span>
-                <span className="line-clamp-2 break-words text-right font-medium text-white/86">
-                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+        {details.length > 0 ? (
+          <section>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/46">Details</h4>
+            <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+              {details.map((detail) => (
+                <div className="grid grid-cols-[92px_1fr] gap-3 px-3 py-2.5 text-xs" key={detail.key}>
+                  <span className="break-words text-white/58">{detail.label}</span>
+                  <span className="line-clamp-2 break-words text-right font-medium text-white/86">
+                    {detail.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {primarySource ? (
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs">
             <div className="font-semibold text-white">{primarySource.source} · {primarySource.type}</div>
@@ -546,6 +747,134 @@ function WidgetResultCardBack({
   );
 }
 
+function phase2Group(widgetId: string): Phase2Filter {
+  if (widgetId.includes("correlation")) {
+    return "correlation";
+  }
+
+  if (widgetId.includes("divergence")) {
+    return "divergence";
+  }
+
+  return "macro";
+}
+
+function CrossMarketOverview({
+  data,
+  filter,
+  onFilterChange,
+  selectedWidgetId,
+  onSelectWidget,
+  onBack
+}: {
+  data: CrossMarketWidgetsApi | null;
+  filter: Phase2Filter;
+  onFilterChange: (filter: Phase2Filter) => void;
+  selectedWidgetId: string | null;
+  onSelectWidget: (widgetId: string) => void;
+  onBack: () => void;
+}) {
+  const filteredWidgets = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    if (filter === "all") {
+      return data.results;
+    }
+
+    return data.results.filter((result) => phase2Group(result.widgetId) === filter);
+  }, [data, filter]);
+  const primaryAssets = data?.assetStatuses.filter((status) =>
+    ["BTCUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"].includes(status.symbol)
+  ) ?? [];
+  const primaryCorrelations = data?.correlations.slice(0, 4) ?? [];
+
+  return (
+    <GlassPanel className="mb-4 p-4 md:p-5">
+      <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <SectionHeader eyebrow="Cross-market context" title="Macro Context" />
+        <div className="glass-surface flex w-fit overflow-hidden rounded-[18px] p-1">
+          {(["all", "macro", "correlation", "divergence"] as Phase2Filter[]).map((item) => (
+            <button
+              className={cn(
+                "h-9 rounded-[14px] px-3 text-xs font-semibold capitalize text-white/68 transition hover:bg-white/10",
+                item === filter && "bg-white/18 text-white shadow-glass"
+              )}
+              key={item}
+              onClick={() => onFilterChange(item)}
+              type="button"
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {data?.warnings.length ? (
+        <div className="mb-4 rounded-2xl border border-amber-300/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {data.warnings.slice(0, 2).join(" ")}
+        </div>
+      ) : null}
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-8">
+        {primaryAssets.map((asset) => (
+          <div className="rounded-[20px] border border-white/10 bg-white/[0.045] px-4 py-3 [box-shadow:inset_0_1px_0_rgba(255,255,255,0.10)]" key={asset.symbol}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-white/64">{asset.symbol}</div>
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  asset.isMissing ? "bg-rose-300" : asset.isStale ? "bg-amber-300" : "bg-emerald-300"
+                )}
+              />
+            </div>
+            <div className="mt-2 text-lg font-semibold text-white">{formatNumber(asset.latestValue)}</div>
+            <div className={cn("mt-1 text-xs font-semibold", (asset.changePercent ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}>
+              {asset.changePercent === null ? "--" : `${asset.changePercent >= 0 ? "+" : ""}${formatNumber(asset.changePercent)}%`}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
+        {primaryCorrelations.map((pair) => (
+          <div className="rounded-[20px] border border-white/10 bg-slate-950/18 px-4 py-3" key={pair.id}>
+            <div className="text-xs font-semibold text-white/52">{pair.label}</div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="text-2xl font-semibold text-white">
+                {pair.latestCorrelation === null ? "--" : pair.latestCorrelation.toFixed(2)}
+              </div>
+              <div className={cn("text-xs font-semibold", (pair.divergencePercent ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                {pair.divergencePercent === null ? "--" : `${pair.divergencePercent >= 0 ? "+" : ""}${formatNumber(pair.divergencePercent)}% div`}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredWidgets.length === 0 ? (
+        <EmptyState
+          description="Run daily cross-market collection to populate macro context."
+          title="No cross-market widget results available"
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {filteredWidgets.map((result) => (
+            <WidgetResultCard
+              key={result.widgetId}
+              onBack={onBack}
+              onSelect={() => onSelectWidget(result.widgetId)}
+              result={result}
+              selected={result.widgetId === selectedWidgetId}
+            />
+          ))}
+        </div>
+      )}
+    </GlassPanel>
+  );
+}
+
 export function DashboardFoundation() {
   const [symbols, setSymbols] = useState<SymbolApi[]>([]);
   const [symbol, setSymbol] = useState("BTCUSDT");
@@ -553,20 +882,27 @@ export function DashboardFoundation() {
   const [overview, setOverview] = useState<MarketOverviewApi | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatusApi | null>(null);
   const [widgets, setWidgets] = useState<WidgetResultApi[]>([]);
+  const [crossMarket, setCrossMarket] = useState<CrossMarketWidgetsApi | null>(null);
+  const [authSession, setAuthSession] = useState<AuthSessionApi | null>(null);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [selectedCrossMarketWidgetId, setSelectedCrossMarketWidgetId] = useState<string | null>(null);
+  const [phase2Filter, setPhase2Filter] = useState<Phase2Filter>("all");
   const [status, setStatus] = useState<DashboardStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [isCollecting, setIsCollecting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadSymbols() {
       try {
-        const data = await fetchApi<{ symbols: SymbolApi[]; count: number }>("/api/symbols", controller.signal);
+        const data = await fetchApi<{ symbols: SymbolApi[]; count: number; session: AuthSessionApi }>("/api/symbols", controller.signal);
         setSymbols(data.symbols);
+        setAuthSession(data.session);
         if (data.symbols.length > 0) {
-          setSymbol((current) => data.symbols.some((item) => item.symbol === current) ? current : data.symbols[0].symbol);
+          const unlockedSymbols = data.symbols.filter((item) => !item.isLocked);
+          setSymbol((current) => unlockedSymbols.some((item) => item.symbol === current) ? current : unlockedSymbols[0]?.symbol ?? data.symbols[0].symbol);
         }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Unable to load symbols");
@@ -586,7 +922,15 @@ export function DashboardFoundation() {
       setError(null);
 
       try {
-        const [marketData, widgetData, runtimeData] = await Promise.all([
+        const sessionData = await fetchApi<AuthSessionApi>("/api/auth/session", controller.signal);
+        setAuthSession(sessionData);
+
+        if (!sessionData.accessibleSymbols.includes(symbol)) {
+          setSymbol(sessionData.accessibleSymbols[0] ?? "BTCUSDT");
+          return;
+        }
+
+        const [marketData, widgetData, runtimeData, crossMarketData] = await Promise.all([
           fetchApi<MarketOverviewApi>(
             `/api/market/overview?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=120`,
             controller.signal
@@ -598,14 +942,28 @@ export function DashboardFoundation() {
           fetchApi<RuntimeStatusApi>(
             "/api/runtime/status",
             controller.signal
-          )
+          ),
+          sessionData.isAdmin
+            ? fetchApi<CrossMarketWidgetsApi>(
+                "/api/widgets/cross-market?timeframe=1d",
+                controller.signal
+              )
+            : Promise.resolve(emptyCrossMarketData())
         ]);
 
         setOverview(marketData);
         setWidgets(widgetData.results);
         setRuntimeStatus(runtimeData);
+        setCrossMarket(crossMarketData);
         setSelectedWidgetId((current) => {
           if (current && widgetData.results.some((result) => result.widgetId === current)) {
+            return current;
+          }
+
+          return null;
+        });
+        setSelectedCrossMarketWidgetId((current) => {
+          if (current && crossMarketData.results.some((result) => result.widgetId === current)) {
             return current;
           }
 
@@ -624,6 +982,35 @@ export function DashboardFoundation() {
 
     return () => controller.abort();
   }, [symbol, timeframe, refreshCounter]);
+
+  async function refreshMarketData() {
+    setIsCollecting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/collect/run", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          symbols: [symbol],
+          timeframes
+        })
+      });
+      const body = (await response.json()) as { status?: string; message?: string };
+
+      if (!response.ok || body.status === "error") {
+        throw new Error(body.message ?? "Unable to refresh market data");
+      }
+
+      setRefreshCounter((current) => current + 1);
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "Unable to refresh market data");
+    } finally {
+      setIsCollecting(false);
+    }
+  }
 
   const metrics = overview?.metrics;
   const dashboardWarnings = useMemo<DashboardWarning[]>(() => {
@@ -692,12 +1079,12 @@ export function DashboardFoundation() {
   }, [overview, runtimeStatus, status, widgets]);
 
   return (
-    <AppShell>
+    <AppShell activeItem="dashboard">
       <section className="relative flex min-w-0 flex-1 gap-4 p-4 md:p-6">
         <div className="min-w-0 flex-1">
           <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-100/48">Phase 1 Crypto Signals</div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-100/48">Market Intelligence</div>
               <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">LariPulse</h1>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -706,14 +1093,21 @@ export function DashboardFoundation() {
                   <button
                     className={cn(
                       "flex h-11 items-center gap-2 rounded-[18px] px-4 text-sm font-semibold text-white/74 transition hover:bg-white/10",
-                      item.symbol === symbol && "bg-white/18 text-white shadow-glass"
+                      item.symbol === symbol && "bg-white/18 text-white shadow-glass",
+                      item.isLocked && "cursor-not-allowed opacity-45 hover:bg-transparent"
                     )}
+                    disabled={item.isLocked}
                     key={item.symbol}
-                    onClick={() => setSymbol(item.symbol)}
+                    onClick={() => {
+                      if (!item.isLocked) {
+                        setSymbol(item.symbol);
+                      }
+                    }}
+                    title={item.isLocked ? "Locked in Basic access" : undefined}
                     type="button"
                   >
                     {formatPair(item.symbol)}
-                    <ChevronDown className="h-4 w-4 text-white/46" />
+                    {item.isLocked ? <Lock className="h-4 w-4 text-white/54" /> : <ChevronDown className="h-4 w-4 text-white/46" />}
                   </button>
                 ))}
               </div>
@@ -733,11 +1127,14 @@ export function DashboardFoundation() {
                 ))}
               </div>
               <button
-                className="glass-surface flex h-12 w-12 items-center justify-center rounded-2xl text-white/78 transition hover:bg-white/12"
-                onClick={() => setRefreshCounter((current) => current + 1)}
+                aria-label="Pull latest Binance data"
+                className="glass-surface flex h-12 w-12 items-center justify-center rounded-2xl text-white/78 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-55"
+                disabled={isCollecting}
+                onClick={() => void refreshMarketData()}
+                title="Pull latest Binance data"
                 type="button"
               >
-                <RefreshCw className="h-5 w-5" />
+                <RefreshCw className={cn("h-5 w-5", isCollecting && "animate-spin")} />
               </button>
             </div>
           </div>
@@ -761,12 +1158,28 @@ export function DashboardFoundation() {
 
           <PriceChart candles={overview?.candles ?? []} symbol={symbol} timeframe={timeframe} />
 
+          {authSession?.isAdmin ? (
+            <CrossMarketOverview
+              data={crossMarket}
+              filter={phase2Filter}
+              onBack={() => setSelectedCrossMarketWidgetId(null)}
+              onFilterChange={setPhase2Filter}
+              onSelectWidget={setSelectedCrossMarketWidgetId}
+              selectedWidgetId={selectedCrossMarketWidgetId}
+            />
+          ) : null}
+
           <div className="mb-4 flex items-center justify-between">
             <SectionHeader eyebrow="Signal engines" title="Widget Results" />
             <div className="flex flex-wrap justify-end gap-2">
               {runtimeStatus ? (
                 <StatusBadge tone={runtimeStatus.scheduler.enabled ? "green" : "amber"}>
                   Scheduler {runtimeStatus.scheduler.enabled ? "enabled" : "off"}
+                </StatusBadge>
+              ) : null}
+              {runtimeStatus ? (
+                <StatusBadge tone={runtimeStatus.scheduler.phase2Enabled ? "green" : "amber"}>
+                  Macro {runtimeStatus.scheduler.phase2Enabled ? "scheduled" : "manual"}
                 </StatusBadge>
               ) : null}
               <StatusBadge tone={status === "ready" && widgets.length > 0 ? "green" : "amber"}>

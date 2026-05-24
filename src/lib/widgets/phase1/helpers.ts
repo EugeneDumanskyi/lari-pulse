@@ -1,4 +1,5 @@
 import type { CandleRecord } from "@/lib/db/types";
+import { getTimeframeCandles as getMarketContextTimeframeCandles } from "../marketContext";
 import type { SourceRef, WidgetContext, WidgetResult, WidgetSeverity } from "../types";
 
 export type DirectionBias = "bullish" | "bearish" | "neutral" | "mixed";
@@ -91,7 +92,16 @@ export function latestUpdatedAt(context: WidgetContext, candles: CandleRecord[] 
 export function getTimeframeCandles(context: WidgetContext) {
   const marketContext = context.marketContext as TimeframeCandleContext | undefined;
 
-  return marketContext?.timeframeCandles ?? {};
+  if (!marketContext?.timeframeCandles) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.keys(marketContext.timeframeCandles).map((timeframe) => [
+      timeframe,
+      getMarketContextTimeframeCandles(context.marketContext, timeframe)
+    ])
+  );
 }
 
 export function trendBiasFromInputs(price: number, ma7: number, ma30: number) {

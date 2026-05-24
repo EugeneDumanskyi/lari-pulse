@@ -1,6 +1,7 @@
 "use client";
 
 import type { HTMLAttributes, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
@@ -51,7 +52,7 @@ export function GlassCard({
       )}
       {...props}
     >
-      <div className="glass-content">{children}</div>
+      <div className="glass-content h-full">{children}</div>
     </div>
   );
 }
@@ -156,18 +157,25 @@ export function ToolbarButton({
 export function SidebarNavItem({
   icon: Icon,
   label,
-  active
+  active,
+  disabled,
+  onClick
 }: {
   icon: LucideIcon;
   label: string;
   active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       className={cn(
         "flex h-12 w-full items-center gap-4 rounded-2xl px-4 text-left text-sm text-white/82 transition hover:bg-white/10",
-        active && "border border-white/20 bg-white/16 text-white shadow-glass"
+        active && "border border-white/20 bg-white/16 text-white shadow-glass",
+        disabled && "cursor-not-allowed opacity-42 hover:bg-transparent"
       )}
+      disabled={disabled}
+      onClick={onClick}
       type="button"
     >
       <Icon className="h-5 w-5" />
@@ -319,17 +327,30 @@ export function DrawerPanel() {
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const nav = [
-    [Grid2X2, "Dashboard", true],
-    [BarChart3, "Markets", false],
-    [Bell, "Alerts", false],
-    [Star, "Watchlist", false],
-    [Search, "Scans", false],
-    [Sparkles, "Insights", false],
-    [Activity, "Reports", false],
-    [Settings, "Settings", false]
-  ] as const;
+export function AppShell({
+  children,
+  activeItem = "dashboard"
+}: {
+  children: ReactNode;
+  activeItem?: "dashboard" | "markets" | "settings";
+}) {
+  const router = useRouter();
+  const nav: Array<{
+    icon: LucideIcon;
+    label: string;
+    active: boolean;
+    disabled?: boolean;
+    onClick?: () => void;
+  }> = [
+    { icon: Grid2X2, label: "Dashboard", active: activeItem === "dashboard", onClick: () => router.push("/dashboard") },
+    { icon: BarChart3, label: "Markets", active: activeItem === "markets", onClick: () => router.push("/markets") },
+    { icon: Bell, label: "Alerts", active: false, disabled: true },
+    { icon: Star, label: "Watchlist", active: false, disabled: true },
+    { icon: Search, label: "Scans", active: false, disabled: true },
+    { icon: Sparkles, label: "Insights", active: false, disabled: true },
+    { icon: Activity, label: "Reports", active: false, disabled: true },
+    { icon: Settings, label: "Settings", active: activeItem === "settings", onClick: () => router.push("/settings") }
+  ];
 
   return (
     <main className="min-h-screen p-3 text-white md:p-4">
@@ -342,12 +363,19 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="text-2xl font-semibold">LariPulse</div>
           </div>
           <nav className="space-y-2">
-            {nav.map(([Icon, label, active]) => (
-              <SidebarNavItem active={active} icon={Icon} key={label} label={label} />
+            {nav.map((item) => (
+              <SidebarNavItem
+                active={item.active}
+                disabled={item.disabled}
+                icon={item.icon}
+                key={item.label}
+                label={item.label}
+                onClick={item.onClick}
+              />
             ))}
           </nav>
           <div className="mt-auto rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm text-white/62">
-            Phase 1 · Local SQLite
+            Local market workspace
           </div>
         </aside>
         {children}

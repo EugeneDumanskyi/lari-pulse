@@ -1,5 +1,8 @@
 import type { SourceRef, WidgetSeverity } from "@/lib/widgets/types";
 import type { SourceRunStatus } from "@/lib/db/types";
+import type { AssetType, MarketDataSource } from "@/lib/config/marketTypes";
+import type { AccessPlan } from "@/lib/auth/access";
+import type { WidgetGroup, WidgetPlanTier } from "@/lib/widgets/catalog";
 
 export interface ApiEnvelope<T> {
   status: "ok";
@@ -13,11 +16,24 @@ export interface ApiErrorEnvelope {
 
 export interface SymbolApi {
   symbol: string;
-  assetType: string;
+  assetType: AssetType;
   baseAsset: string;
   quoteAsset: string;
-  source: string;
+  source: MarketDataSource;
+  displayName: string | null;
+  providerSymbol: string | null;
+  priceUnit: string | null;
   isActive: boolean;
+  isLocked: boolean;
+}
+
+export interface AuthSessionApi {
+  isAdmin: boolean;
+  plan: AccessPlan;
+  username: string | null;
+  accessibleSymbols: string[];
+  lockedSymbols: string[];
+  visibleWidgetIds: string[];
 }
 
 export interface WidgetResultApi {
@@ -32,6 +48,64 @@ export interface WidgetResultApi {
   summary: string;
   details: Record<string, unknown>;
   sources: SourceRef[];
+  updatedAt: string;
+}
+
+export interface WidgetCatalogItemApi {
+  widgetId: string;
+  title: string;
+  group: WidgetGroup;
+  planTier: WidgetPlanTier;
+  defaultEnabled: boolean;
+  priority: number;
+  category: string;
+  iconKey: string;
+  description: string;
+  isAvailable: boolean;
+  isLocked: boolean;
+  isEnabled: boolean;
+}
+
+export interface WidgetSettingsApi {
+  plan: AccessPlan;
+  canEdit: boolean;
+  enabledWidgetIds: string[];
+  catalog: WidgetCatalogItemApi[];
+  updatedAt: string;
+}
+
+export interface CrossMarketAssetStatusApi {
+  symbol: string;
+  displayName: string;
+  assetType: AssetType;
+  source: MarketDataSource;
+  latestValue: number | null;
+  changePercent: number | null;
+  candleCount: number;
+  updatedAt: string | null;
+  isMissing: boolean;
+  isStale: boolean;
+}
+
+export interface CrossMarketCorrelationApi {
+  id: string;
+  label: string;
+  leftSymbol: string;
+  rightSymbol: string;
+  timeframe: string;
+  latestCorrelation: number | null;
+  observations: number;
+  divergencePercent: number | null;
+  warnings: string[];
+  updatedAt: string | null;
+}
+
+export interface CrossMarketWidgetsApi {
+  timeframe: string;
+  results: WidgetResultApi[];
+  assetStatuses: CrossMarketAssetStatusApi[];
+  correlations: CrossMarketCorrelationApi[];
+  warnings: string[];
   updatedAt: string;
 }
 
@@ -64,6 +138,31 @@ export interface MarketOverviewApi {
   };
 }
 
+export interface MarketSummaryApi {
+  symbol: string;
+  displayName: string;
+  assetType: AssetType;
+  source: MarketDataSource;
+  group: string;
+  timeframe: string;
+  priceUnit: string | null;
+  providerSymbol: string | null;
+  latestValue: number | null;
+  changePercent: number | null;
+  candleCount: number;
+  updatedAt: string | null;
+  isStale: boolean;
+  isLocked: boolean;
+  sourceNote: string | null;
+}
+
+export interface MarketsApi {
+  markets: MarketSummaryApi[];
+  count: number;
+  session: AuthSessionApi;
+  updatedAt: string;
+}
+
 export interface SourceRunApi {
   id: number;
   source: string;
@@ -82,11 +181,16 @@ export interface RuntimeStatusApi {
     intervalSeconds: number;
     lastRunAt: string | null;
     lastStatus: "ok" | "partial" | "error" | "skipped" | null;
+    phase2Enabled: boolean;
+    phase2IntervalSeconds: number;
+    lastPhase2RunAt: string | null;
+    lastPhase2Status: "ok" | "partial" | "error" | "skipped" | null;
   };
   collection: {
     configuredSymbols: string[];
     configuredTimeframes: string[];
     latestBinanceRun: SourceRunApi | null;
+    latestFredRun: SourceRunApi | null;
     latestSchedulerRun: SourceRunApi | null;
     recentRuns: SourceRunApi[];
     hasCollectorFailure: boolean;

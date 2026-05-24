@@ -6,6 +6,10 @@ CREATE TABLE IF NOT EXISTS symbols (
   base_asset TEXT NOT NULL,
   quote_asset TEXT NOT NULL,
   source TEXT NOT NULL,
+  display_name TEXT,
+  provider_symbol TEXT,
+  price_unit TEXT,
+  metadata_json TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -53,6 +57,13 @@ CREATE TABLE IF NOT EXISTS source_runs (
   metadata_json TEXT
 );
 
+CREATE TABLE IF NOT EXISTS widget_settings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  widget_id TEXT NOT NULL UNIQUE,
+  is_enabled INTEGER NOT NULL CHECK (is_enabled IN (0, 1)),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe_open_time
   ON candles(symbol, timeframe, open_time);
 
@@ -64,4 +75,10 @@ CREATE INDEX IF NOT EXISTS idx_widget_results_symbol_timeframe_created
 
 CREATE INDEX IF NOT EXISTS idx_source_runs_source_collector_started
   ON source_runs(source, collector_id, started_at);
+
+CREATE INDEX IF NOT EXISTS idx_symbols_asset_type_source
+  ON symbols(asset_type, source);
+
+CREATE INDEX IF NOT EXISTS idx_widget_settings_enabled
+  ON widget_settings(is_enabled);
 `;

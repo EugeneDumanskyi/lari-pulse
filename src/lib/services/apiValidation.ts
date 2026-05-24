@@ -1,8 +1,16 @@
 import { appConfig } from "@/lib/config/appConfig";
 import { widgetRegistry } from "@/lib/widgets/registry";
+import type { AuthSession } from "@/lib/auth/access";
+import { canAccessSymbol } from "@/lib/auth/access";
 
 export class ApiInputError extends Error {
-  readonly statusCode = 400;
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = "ApiInputError";
+    this.statusCode = statusCode;
+  }
 }
 
 export function requireQueryParam(params: URLSearchParams, name: string) {
@@ -48,6 +56,14 @@ export function validateWidgetId(widgetId: string) {
   }
 
   return normalized;
+}
+
+export function validateSymbolAccess(symbol: string, session: AuthSession) {
+  if (!canAccessSymbol(session, symbol)) {
+    throw new ApiInputError(`Symbol is locked for the current access level: ${symbol}`);
+  }
+
+  return symbol;
 }
 
 export function validateOptionalLimit(limitValue: string | null, defaultLimit = 100, maxLimit = 500) {

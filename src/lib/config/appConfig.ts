@@ -10,5 +10,7 @@ export const appConfig = {
   symbols: defaultSymbols,
   timeframes: defaultTimeframes,
   schedulerEnabled: process.env.SCHEDULER_ENABLED === "true",
-  collectIntervalSeconds: Number(process.env.COLLECT_INTERVAL_SECONDS ?? 60)
+  collectIntervalSeconds: Number(process.env.COLLECT_INTERVAL_SECONDS ?? 60),
+  phase2SchedulerEnabled: process.env.PHASE2_SCHEDULER_ENABLED === "true",
+  phase2RefreshIntervalSeconds: Number(process.env.PHASE2_REFRESH_INTERVAL_SECONDS ?? 24 * 60 * 60)
 };

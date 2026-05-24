@@ -43,9 +43,15 @@ export function getRuntimeStatus(db?: Database.Database): RuntimeStatusApi {
     collectorId: "phase1_scheduler",
     limit: 1
   }).at(0) ?? null;
+  const latestFred = getLatestSourceRuns(database, {
+    source: "fred",
+    collectorId: "fred_daily_series",
+    limit: 1
+  }).at(0) ?? null;
   const recentRuns = getLatestSourceRuns(database, { limit: 8 }).map(mapSourceRun);
   const warningMessages = [
     lastFailureMessage(latestBinance),
+    lastFailureMessage(latestFred),
     lastFailureMessage(latestScheduler)
   ].filter((message): message is string => Boolean(message));
 
@@ -55,6 +61,7 @@ export function getRuntimeStatus(db?: Database.Database): RuntimeStatusApi {
       configuredSymbols: appConfig.symbols.filter((symbol) => symbol.isActive).map((symbol) => symbol.symbol),
       configuredTimeframes: [...appConfig.timeframes],
       latestBinanceRun: latestBinance ? mapSourceRun(latestBinance) : null,
+      latestFredRun: latestFred ? mapSourceRun(latestFred) : null,
       latestSchedulerRun: latestScheduler ? mapSourceRun(latestScheduler) : null,
       recentRuns,
       hasCollectorFailure: warningMessages.length > 0,

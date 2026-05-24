@@ -3,18 +3,27 @@ import { apiErrorJson, okJson } from "@/lib/services/apiResponses";
 import {
   requireQueryParam,
   validateOptionalTimeframe,
-  validateSymbol
+  validateSymbol,
+  validateSymbolAccess
 } from "@/lib/services/apiValidation";
 import { listLatestWidgetResults } from "@/lib/services/widgetResultService";
+import { filterVisibleWidgetResults, getSessionFromRequest } from "@/lib/auth/access";
+import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
+    const session = getSessionFromRequest(request);
     const symbol = validateSymbol(requireQueryParam(params, "symbol"));
+    validateSymbolAccess(symbol, session);
     const timeframe = validateOptionalTimeframe(params.get("timeframe"));
-    const results = listLatestWidgetResults({ symbol, timeframe });
+    const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
+    const results = filterVisibleWidgetResults(listLatestWidgetResults({ symbol, timeframe }), {
+      ...session,
+      visibleWidgetIds
+    });
 
     return okJson({
       symbol,

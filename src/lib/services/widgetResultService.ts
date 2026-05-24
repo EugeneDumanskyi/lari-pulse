@@ -8,6 +8,7 @@ import {
 import type { WidgetResultRow } from "@/lib/db/types";
 import type { WidgetResultApi } from "@/lib/api/types";
 import type { SourceRef } from "@/lib/widgets/types";
+import { sortByWidgetPriority } from "@/lib/widgets/catalog";
 
 function parseDetails(value: string, rowId: number) {
   const parsed = JSON.parse(value) as unknown;
@@ -56,7 +57,7 @@ export function listLatestWidgetResults(
     initializeDatabase();
   }
 
-  return getLatestWidgetResults(database, filters).map(mapWidgetResultRow);
+  return sortByWidgetPriority(getLatestWidgetResults(database, filters).map(mapWidgetResultRow));
 }
 
 export function listWidgetHistory(
