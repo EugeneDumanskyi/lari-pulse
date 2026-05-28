@@ -7,8 +7,10 @@ import {
 } from "@/lib/db/repositories/widgetResultsRepository";
 import type { WidgetResultRow } from "@/lib/db/types";
 import type { WidgetResultApi } from "@/lib/api/types";
-import type { SourceRef } from "@/lib/widgets/types";
+import type { SourceRef, WidgetResult } from "@/lib/widgets/types";
 import { sortByWidgetPriority } from "@/lib/widgets/catalog";
+import { liquidationsWidget } from "@/lib/widgets/liquidity";
+import { buildLiquidityWidgetContext } from "./liquidityWidgetContextService";
 
 function parseDetails(value: string, rowId: number) {
   const parsed = JSON.parse(value) as unknown;
@@ -47,6 +49,23 @@ export function mapWidgetResultRow(row: WidgetResultRow): WidgetResultApi {
   };
 }
 
+function mapWidgetResult(result: WidgetResult, id: number): WidgetResultApi {
+  return {
+    id,
+    widgetId: result.widgetId,
+    symbol: result.symbol ?? null,
+    timeframe: result.timeframe ?? null,
+    score: result.score,
+    direction: result.direction,
+    confidence: result.confidence,
+    severity: result.severity,
+    summary: result.summary,
+    details: result.details,
+    sources: result.sources,
+    updatedAt: result.updatedAt
+  };
+}
+
 export function listLatestWidgetResults(
   filters: { symbol: string; timeframe?: string },
   db?: Database.Database
@@ -58,6 +77,41 @@ export function listLatestWidgetResults(
   }
 
   return sortByWidgetPriority(getLatestWidgetResults(database, filters).map(mapWidgetResultRow));
+}
+
+export async function listLatestWidgetResultsWithDerivedLiquidity(
+  filters: { symbol: string; timeframe?: string },
+  db?: Database.Database
+) {
+  const database = db ?? getDatabase();
+
+  if (!db) {
+    initializeDatabase();
+  }
+
+  const results = listLatestWidgetResults(filters, database);
+
+  if (!filters.timeframe) {
+    return results;
+  }
+
+  const derivedLiquidations = await liquidationsWidget.run({
+    symbol: filters.symbol,
+    timeframe: filters.timeframe,
+    marketContext: {
+      liquidity: buildLiquidityWidgetContext(database, {
+        symbol: filters.symbol,
+        timeframes: [filters.timeframe],
+        now: new Date()
+      })
+    },
+    now: new Date()
+  });
+
+  return sortByWidgetPriority([
+    ...results.filter((result) => result.widgetId !== liquidationsWidget.id),
+    mapWidgetResult(derivedLiquidations, 0)
+  ]);
 }
 
 export function listWidgetHistory(

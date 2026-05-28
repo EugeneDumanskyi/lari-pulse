@@ -48,6 +48,21 @@ export function validateOptionalTimeframe(timeframe: string | null) {
   return normalized;
 }
 
+export function validateOptionalRange(range: string | null) {
+  if (!range) {
+    return undefined;
+  }
+
+  const normalized = range.trim().toLowerCase();
+  const allowedRanges = new Set(["1d", "7d", "30d", "90d"]);
+
+  if (!allowedRanges.has(normalized)) {
+    throw new ApiInputError(`Unsupported range: ${range}`);
+  }
+
+  return normalized;
+}
+
 export function validateWidgetId(widgetId: string) {
   const normalized = widgetId.trim();
 

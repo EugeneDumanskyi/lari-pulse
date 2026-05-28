@@ -31,10 +31,21 @@ export const widgetCatalog = [
     group: "crypto",
     planTier: "pro",
     defaultEnabled: true,
-    priority: 20,
+    priority: 40,
     category: "trend",
     iconKey: "layers",
     description: "Compares directional agreement across configured crypto timeframes."
+  },
+  {
+    widgetId: "liquidations",
+    title: "Liquidations",
+    group: "crypto",
+    planTier: "enterprise",
+    defaultEnabled: true,
+    priority: 30,
+    category: "liquidity",
+    iconKey: "zap",
+    description: "Summarizes observed Binance forced-order liquidations across longs and shorts for the selected interval."
   },
   {
     widgetId: "momentum_exhaustion",
@@ -42,7 +53,7 @@ export const widgetCatalog = [
     group: "crypto",
     planTier: "basic",
     defaultEnabled: true,
-    priority: 30,
+    priority: 50,
     category: "momentum",
     iconKey: "gauge",
     description: "Detects when momentum is stretched using RSI, volatility, and distance from moving averages."
@@ -53,7 +64,7 @@ export const widgetCatalog = [
     group: "crypto",
     planTier: "pro",
     defaultEnabled: true,
-    priority: 40,
+    priority: 60,
     category: "levels",
     iconKey: "split",
     description: "Interprets current price pressure against nearby support and resistance zones."
@@ -64,7 +75,7 @@ export const widgetCatalog = [
     group: "crypto",
     planTier: "pro",
     defaultEnabled: true,
-    priority: 50,
+    priority: 70,
     category: "volume",
     iconKey: "bar-chart",
     description: "Checks whether volume behavior confirms or conflicts with the latest price move."

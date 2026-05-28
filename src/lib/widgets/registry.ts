@@ -1,5 +1,6 @@
 import type { WidgetEngine } from "./types";
 import { phase1Widgets } from "./phase1";
+import { liquidityWidgets } from "./liquidity";
 
 export class WidgetRegistry {
   private readonly engines = new Map<string, WidgetEngine>();
@@ -31,4 +32,4 @@ export class WidgetRegistry {
   }
 }
 
-export const widgetRegistry = new WidgetRegistry(phase1Widgets);
+export const widgetRegistry = new WidgetRegistry([...phase1Widgets, ...liquidityWidgets]);

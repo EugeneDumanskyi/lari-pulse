@@ -1,4 +1,5 @@
 import type { CandleFetchRequest, CandleFetchResult, NormalizedCandle } from "./types";
+import { derivedDaysForTimeframe, sourceTimeframeForCollection } from "@/lib/config/timeframes";
 
 const BINANCE_SOURCE = "binance" as const;
 
@@ -74,6 +75,41 @@ export function normalizeBinanceKline(
   };
 }
 
+function aggregateCandlesByDays(
+  symbol: string,
+  timeframe: string,
+  candles: NormalizedCandle[],
+  days: number
+): NormalizedCandle[] {
+  const aggregated: NormalizedCandle[] = [];
+
+  for (let end = candles.length; end > 0; end -= days) {
+    const start = Math.max(0, end - days);
+    const chunk = candles.slice(start, end);
+    const first = chunk[0];
+    const last = chunk.at(-1);
+
+    if (!first || !last) {
+      continue;
+    }
+
+    aggregated.unshift({
+      symbol,
+      timeframe,
+      openTime: first.openTime,
+      closeTime: last.closeTime,
+      open: first.open,
+      high: Math.max(...chunk.map((candle) => candle.high)),
+      low: Math.min(...chunk.map((candle) => candle.low)),
+      close: last.close,
+      volume: chunk.reduce((total, candle) => total + candle.volume, 0),
+      source: BINANCE_SOURCE
+    });
+  }
+
+  return aggregated;
+}
+
 async function fetchJsonWithTimeout(url: URL, timeoutMs: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -109,9 +145,13 @@ export async function fetchBinanceCandles(
 ): Promise<CandleFetchResult> {
   const baseUrl = getBinanceBaseUrl(options.baseUrl);
   const url = new URL("/api/v3/klines", baseUrl);
+  const derivedDays = derivedDaysForTimeframe(request.timeframe);
+  const sourceTimeframe = sourceTimeframeForCollection(request.timeframe);
+  const sourceLimit = derivedDays ? Math.min(1000, Math.max(derivedDays, request.limit * derivedDays)) : request.limit;
+
   url.searchParams.set("symbol", request.symbol);
-  url.searchParams.set("interval", request.timeframe);
-  url.searchParams.set("limit", String(request.limit));
+  url.searchParams.set("interval", sourceTimeframe);
+  url.searchParams.set("limit", String(sourceLimit));
 
   const body = await fetchJsonWithTimeout(url, options.timeoutMs ?? 12_000);
 
@@ -123,13 +163,16 @@ export async function fetchBinanceCandles(
     throw new Error("Binance returned no candles");
   }
 
-  const candles = body.map((item) => {
+  const sourceCandles = body.map((item) => {
     if (!isBinanceKline(item)) {
       throw new Error("Binance returned a malformed candle row");
     }
 
-    return normalizeBinanceKline(request.symbol, request.timeframe, item);
+    return normalizeBinanceKline(request.symbol, sourceTimeframe, item);
   });
+  const candles = derivedDays
+    ? aggregateCandlesByDays(request.symbol, request.timeframe, sourceCandles, derivedDays)
+    : sourceCandles;
 
   return {
     symbol: request.symbol,

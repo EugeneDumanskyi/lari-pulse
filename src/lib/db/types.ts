@@ -96,3 +96,53 @@ export interface NewWidgetSetting {
   widgetId: string;
   isEnabled: boolean;
 }
+
+export type StoredLiquidationSide = "long" | "short";
+export type LiquidationSide = "long_liquidated" | "short_liquidated";
+
+export interface LiquidationEventRecord {
+  id: number;
+  eventId: string;
+  symbol: string;
+  source: string;
+  eventTime: number;
+  side: LiquidationSide;
+  liquidationSide: StoredLiquidationSide;
+  orderSide: string;
+  price: number;
+  quantity: number;
+  notionalUsd: number;
+  metadataJson: string | null;
+  createdAt: string;
+}
+
+export type NewLiquidationEvent = Omit<LiquidationEventRecord, "id" | "createdAt" | "liquidationSide">;
+
+export interface LiquidationTimelineBucket {
+  fromTime: number;
+  toTime: number;
+  longLiquidatedUsd: number;
+  shortLiquidatedUsd: number;
+  totalLiquidatedUsd: number;
+  eventCount: number;
+}
+
+export interface LiquidationLargestEvent {
+  id: number;
+  eventId: string;
+  symbol: string;
+  side: LiquidationSide;
+  price: number;
+  quantity: number;
+  notionalUsd: number;
+  timestamp: number;
+  source: string;
+}
+
+export interface LiquidationSymbolAggregate {
+  symbol: string;
+  totalLiquidatedUsd: number;
+  longLiquidatedUsd: number;
+  shortLiquidatedUsd: number;
+  eventCount: number;
+}

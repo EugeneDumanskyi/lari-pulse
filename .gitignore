@@ -4,6 +4,8 @@
 .next/
 node_modules/
 tsconfig.tsbuildinfo
+test-results/
+playwright-report/
 data/*.sqlite
 data/*.sqlite-*
 npm-debug.log*

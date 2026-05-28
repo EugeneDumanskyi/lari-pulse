@@ -71,6 +71,7 @@ These cover short-term, swing and higher-timeframe structure.
 
 ```text
 Binance Spot API (public klines, no key required)
+Binance USD-M Futures forced-order stream (public WebSocket)
 FRED CSV series (daily, no key required)
 ```
 
@@ -218,6 +219,17 @@ error_message, metadata_json
 
 Every collector and scheduler run is logged here, including failures.
 
+### liquidation_events
+
+```text
+id, event_id (unique), symbol, source, event_time, liquidation_side,
+order_side, price, quantity, notional_usd, metadata_json, created_at
+
+index(symbol, event_time)
+```
+
+Liquidity data lives in its own table, never in `candles`.
+
 ## Widget Contract
 
 ```ts
@@ -356,6 +368,7 @@ export interface WidgetMarketContext {
   assetCandles?: Record<string, Record<string, Candle[]>>;
   correlations?: CorrelationPairResult[];
   regimeHints?: MarketRegimeHint[];
+  liquidity?: WidgetLiquidityContext;
   latestCandleUpdatedAt?: string;
   metadata?: Record<string, unknown>;
 }
@@ -392,6 +405,42 @@ Shared trend helpers live next to the engines. Correlation math stays in the cor
 
 Cross-market refresh is optional (`PHASE2_SCHEDULER_ENABLED`) and runs on its own interval (`PHASE2_REFRESH_INTERVAL_SECONDS`, daily by default). The due check reads the latest successful FRED run, so restarts do not cause duplicate collection. A refresh collects FRED data, recalculates correlations, runs the cross-market widgets and stores `CROSS_MARKET` widget results.
 
+## Liquidations
+
+```text
+Binance !forceOrder@arr stream
+  ↓
+binanceLiquidationStreamCollector (normalize, dedupe)
+  ↓
+liquidation_events
+  ↓
+liquidationEventStreamService (interval summaries)
+  ↓
+liquidityWidgetContextService → WidgetContext.marketContext.liquidity
+  ↓
+liquidations widget
+```
+
+A `SELL` forced order is a long liquidation; a `BUY` forced order is a short liquidation. The stream is live-only, so the widget describes what the local process has observed, not complete history.
+
+When `LIQUIDITY_RUNTIME_ENABLED=true`, the stream and a retention cleanup run inside the Next.js process (`liquidityRuntimeService`, started from `src/instrumentation.ts`). No separate worker, queue or Redis is involved. The widget engine itself stays free of WebSocket and database access.
+
+## Situation Overview
+
+`src/lib/services/situationOverview/` combines the latest visible widget results and market metrics into one deterministic read:
+
+```text
+bias (strong_bullish … strong_bearish, mixed, unknown)
+risk level
+confidence
+main drivers and conflicting signals
+watch conditions
+data warnings
+changes since the previous calculation
+```
+
+Trend, momentum, volume and multi-timeframe alignment carry most of the directional weight. Support/resistance adds a smaller modifier, liquidations mostly affect risk, and cross-market widgets add context. It is exposed through `GET /api/overview/situation` and never produces trade instructions.
+
 ## Access and Visibility
 
 A local access model limits what anonymous visitors see: BTC and the core widgets. The local admin unlocks all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
@@ -421,6 +470,7 @@ GET  /api/widgets/latest?symbol=SOLUSDT
 GET  /api/widgets/latest?symbol=SOLUSDT&timeframe=1h
 GET  /api/widgets/history?symbol=SOLUSDT&widgetId=trend_strength
 GET  /api/widgets/cross-market?timeframe=1d
+GET  /api/overview/situation?symbol=BTCUSDT&timeframe=1h
 GET  /api/markets
 GET  /api/markets/overview?symbol=BTCUSDT
 GET  /api/settings/widgets
@@ -461,6 +511,7 @@ Market summary panel
 Price chart
 Widget grid
 Widget details drawer
+Situation Overview card
 Cross-market section
 ```
 

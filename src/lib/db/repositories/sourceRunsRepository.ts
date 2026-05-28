@@ -89,6 +89,36 @@ export function updateSourceRun(
   });
 }
 
+export function markRunningSourceRunsFailed(
+  db: Database.Database,
+  filters: {
+    source: string;
+    collectorId: string;
+    finishedAt?: string;
+    errorMessage: string;
+  }
+) {
+  const info = db.prepare(
+    `
+    UPDATE source_runs
+    SET
+      status = 'failure',
+      finished_at = @finishedAt,
+      error_message = @errorMessage
+    WHERE source = @source
+      AND collector_id = @collectorId
+      AND status = 'running'
+  `
+  ).run({
+    source: filters.source,
+    collectorId: filters.collectorId,
+    finishedAt: filters.finishedAt ?? new Date().toISOString(),
+    errorMessage: filters.errorMessage
+  });
+
+  return info.changes;
+}
+
 export function getSourceRunById(db: Database.Database, id: number) {
   const row = db.prepare("SELECT * FROM source_runs WHERE id = ?").get(id) as
     | SourceRunDbRow

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { runMigrations } from "@/lib/db/migrations";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
+import { insertLiquidationEvents } from "@/lib/db/repositories/liquidityRepository";
 import { getLatestWidgetResults } from "@/lib/db/repositories/widgetResultsRepository";
 import type { NewCandle } from "@/lib/db/types";
 import { runWidgetCalculations } from "./widgetCalculationService";
@@ -42,6 +43,20 @@ describe("widget calculation service", () => {
       for (const timeframe of ["15m", "1h", "4h", "1d"]) {
         upsertCandles(db, makeCandles("BTCUSDT", timeframe));
       }
+      insertLiquidationEvents(db, [
+        {
+          eventId: "liq-1",
+          symbol: "BTCUSDT",
+          source: "binance",
+          eventTime: Date.parse("2026-05-22T11:45:00.000Z"),
+          side: "short_liquidated",
+          orderSide: "BUY",
+          price: 104100,
+          quantity: 2,
+          notionalUsd: 208200,
+          metadataJson: null
+        }
+      ]);
 
       const result = await runWidgetCalculations({
         db,
@@ -51,8 +66,8 @@ describe("widget calculation service", () => {
       });
 
       assert.equal(result.status, "ok");
-      assert.equal(result.widgetsRun, 5);
-      assert.equal(result.widgetsSaved, 5);
+      assert.equal(result.widgetsRun, 6);
+      assert.equal(result.widgetsSaved, 6);
       assert.deepEqual(result.errors, []);
 
       const latest = getLatestWidgetResults(db, {
@@ -60,7 +75,8 @@ describe("widget calculation service", () => {
         timeframe: "1h"
       });
 
-      assert.equal(latest.length, 5);
+      assert.equal(latest.length, 6);
+      assert.ok(latest.some((widget) => widget.widgetId === "liquidations"));
     } finally {
       db.close();
     }

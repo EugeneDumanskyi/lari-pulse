@@ -30,6 +30,11 @@ import type {
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 import {
+  formatLocalDateTime,
+  isIsoDateString,
+  replaceIsoDatesWithLocalTime
+} from "@/lib/utils/formatDateTime";
+import {
   AppShell,
   EmptyState,
   GlassCard,
@@ -38,8 +43,11 @@ import {
   SectionHeader,
   StatusBadge
 } from "./primitives";
+import { SituationOverviewCard } from "./SituationOverviewCard";
+import { useSituationOverview } from "./useSituationOverview";
 
 const timeframes = ["15m", "1h", "4h", "1d"];
+const chartRanges = ["1d", "7d", "30d", "90d"];
 
 const widgetMeta = {
   trend_strength: { title: "Trend Strength", icon: LineChart },
@@ -47,6 +55,7 @@ const widgetMeta = {
   support_resistance_pressure: { title: "Support / Resistance Pressure", icon: Scale },
   volume_confirmation: { title: "Volume Confirmation", icon: BarChart3 },
   multi_timeframe_alignment: { title: "Multi-Timeframe Alignment", icon: Layers },
+  liquidations: { title: "Liquidations", icon: Zap },
   macro_risk_pulse: { title: "Macro Risk Pulse", icon: Globe2 },
   dollar_pressure: { title: "Dollar Pressure", icon: DollarSign },
   gold_risk_hedge: { title: "Gold / Risk Hedge", icon: Shield },
@@ -120,16 +129,15 @@ function formatCompact(value: number | null | undefined) {
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) {
-    return "--";
-  }
+  return formatLocalDateTime(value);
+}
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function formatMessage(value: string) {
+  return replaceIsoDatesWithLocalTime(value);
 }
 
 function confidenceLabel(confidence: number) {
@@ -225,7 +233,7 @@ function DashboardWarnings({ warnings }: { warnings: DashboardWarning[] }) {
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <div className="font-semibold text-white">{warning.title}</div>
-            <div className="text-current/80">{warning.message}</div>
+            <div className="text-current/80">{formatMessage(warning.message)}</div>
           </div>
         </div>
       ))}
@@ -242,7 +250,8 @@ function directionTone(direction: string) {
     value.includes("confirmation") ||
     value.includes("risk_on") ||
     value.includes("easing") ||
-    value.includes("outperforming")
+    value.includes("outperforming") ||
+    value.includes("short_liquidations")
   ) {
     return "green";
   }
@@ -253,7 +262,8 @@ function directionTone(direction: string) {
     value.includes("oversold") ||
     value.includes("risk_off") ||
     value.includes("pressure") ||
-    value.includes("underperforming")
+    value.includes("underperforming") ||
+    value.includes("long_liquidations")
   ) {
     return "red";
   }
@@ -273,7 +283,7 @@ function readableLabel(value: string) {
 }
 
 function readableText(value: string) {
-  return value.replaceAll("_", " ");
+  return replaceIsoDatesWithLocalTime(value).replaceAll("_", " ");
 }
 
 function formatDetailNumber(value: number) {
@@ -305,6 +315,10 @@ function formatPrimitiveDetail(value: string | number | boolean | null) {
 
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";
+  }
+
+  if (isIsoDateString(value)) {
+    return formatLocalDateTime(value);
   }
 
   return readableText(value);
@@ -386,6 +400,21 @@ function formatDetailValue(value: unknown) {
   return "--";
 }
 
+function detailValueParts(value: string) {
+  const delimiter = value.includes("; ") ? /;\s+/ : value.includes(", ") ? /,\s+/ : null;
+
+  if (!delimiter) {
+    return [value];
+  }
+
+  const parts = value
+    .split(delimiter)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length > 1 ? parts : [value];
+}
+
 function detailRows(details: Record<string, unknown>) {
   const priorityKeys = [
     "scoreMeaning",
@@ -398,6 +427,10 @@ function detailRows(details: Record<string, unknown>) {
     "drivers",
     "conflicts",
     "warnings",
+    "longLiquidationUsd",
+    "shortLiquidationUsd",
+    "totalLiquidationUsd",
+    "netPressure",
     "assets",
     "correlations"
   ];
@@ -415,11 +448,16 @@ function detailRows(details: Record<string, unknown>) {
     return leftKey.localeCompare(rightKey);
   });
 
-  return sorted.slice(0, 7).map(([key, value]) => ({
-    key,
-    label: readableLabel(key),
-    value: formatDetailValue(value)
-  }));
+  return sorted.slice(0, 7).map(([key, value]) => {
+    const formattedValue = formatDetailValue(value);
+
+    return {
+      key,
+      label: readableLabel(key),
+      value: formattedValue,
+      parts: detailValueParts(formattedValue)
+    };
+  });
 }
 
 function WidgetIcon({ widgetId }: { widgetId: string }) {
@@ -431,7 +469,7 @@ function MiniSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
       {Array.from({ length: 5 }).map((_, index) => (
-        <GlassCard className="h-[238px] animate-pulse p-5" key={index}>
+        <GlassCard className="h-[252px] animate-pulse p-5" key={index}>
           <div className="h-4 w-2/3 rounded-full bg-white/14" />
           <div className="mx-auto my-7 h-24 w-24 rounded-full bg-white/10" />
           <div className="space-y-3">
@@ -446,10 +484,12 @@ function MiniSkeleton() {
 
 function PriceChart({
   candles,
+  range,
   symbol,
   timeframe
 }: {
   candles: MarketCandleApi[];
+  range: string;
   symbol: string;
   timeframe: string;
 }) {
@@ -460,9 +500,13 @@ function PriceChart({
     const volumeTop = 194;
     const volumeHeight = 38;
     const closes = candles.map((candle) => candle.close);
+    const highs = candles.map((candle) => candle.high);
+    const lows = candles.map((candle) => candle.low);
     const volumes = candles.map((candle) => candle.volume);
     const minClose = closes.length > 0 ? Math.min(...closes) : 0;
     const maxClose = closes.length > 0 ? Math.max(...closes) : 1;
+    const periodHigh = highs.length > 0 ? Math.max(...highs) : null;
+    const periodLow = lows.length > 0 ? Math.min(...lows) : null;
     const maxVolume = volumes.length > 0 ? Math.max(...volumes) : 1;
     const priceRange = maxClose - minClose || 1;
     const step = candles.length > 1 ? width / (candles.length - 1) : width;
@@ -482,8 +526,8 @@ function PriceChart({
         height: Math.max(2, (candle.volume / maxVolume) * volumeHeight),
         up: candle.close >= candle.open
       })),
-      min: minClose,
-      max: maxClose,
+      min: periodLow,
+      max: periodHigh,
       latest: candles.at(-1)?.close ?? null
     };
   }, [candles]);
@@ -491,7 +535,7 @@ function PriceChart({
   return (
     <GlassPanel className="mb-4 p-4">
       <div className="mb-3 flex flex-col gap-2 text-sm text-white/70 md:flex-row md:items-center">
-        <div className="text-lg font-semibold text-white">{formatPair(symbol)} · {timeframe} · LariPulse</div>
+        <div className="text-lg font-semibold text-white">{formatPair(symbol)} · {timeframe} signals · {range.toUpperCase()} chart</div>
         <span className="hidden h-2 w-2 rounded-full bg-emerald-300 md:block" />
         <span>High {formatNumber(max)}</span>
         <span>Low {formatNumber(min)}</span>
@@ -552,7 +596,7 @@ function WidgetResultCard({
   onSelect: () => void;
 }) {
   return (
-    <GlassCard className="scroll-optimized-card h-[430px] p-5 [perspective:1200px]" selected={selected}>
+    <GlassCard className="scroll-optimized-card h-[444px] p-5 [perspective:1200px]" selected={selected}>
       <AnimatePresence initial={false} mode="wait">
         {selected ? (
           <motion.div
@@ -643,7 +687,7 @@ function WidgetResultCardFront({
           ))}
         </div>
       ) : null}
-      <p className="line-clamp-3 text-xs leading-5 text-white/68">{result.summary}</p>
+      <p className="line-clamp-4 text-xs leading-5 text-white/68">{result.summary}</p>
       <div className="mt-auto flex items-center justify-between gap-3 pt-5 text-xs text-white/58">
         <span>{formatTime(result.updatedAt)}</span>
         <button
@@ -710,7 +754,7 @@ function WidgetResultCardBack({
                 key={warning.id}
               >
                 <div className="font-semibold text-white">{warning.title}</div>
-                <div className="text-sm text-current/82">{warning.message}</div>
+                <div className="text-sm text-current/82">{formatMessage(warning.message)}</div>
               </div>
             ))}
           </section>
@@ -724,11 +768,19 @@ function WidgetResultCardBack({
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/46">Details</h4>
             <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
               {details.map((detail) => (
-                <div className="grid grid-cols-[92px_1fr] gap-3 px-3 py-2.5 text-xs" key={detail.key}>
+                <div className="grid grid-cols-[minmax(84px,118px)_1fr] gap-3 px-3 py-2.5 text-xs" key={detail.key}>
                   <span className="break-words text-white/58">{detail.label}</span>
-                  <span className="line-clamp-2 break-words text-right font-medium text-white/86">
-                    {detail.value}
-                  </span>
+                  {detail.parts.length > 1 ? (
+                    <ul className="ml-auto max-w-full space-y-1 text-right font-medium text-white/86">
+                      {detail.parts.slice(0, 5).map((part) => (
+                        <li className="break-words" key={part}>{part}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="line-clamp-3 break-words text-right font-medium text-white/86">
+                      {detail.value}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -813,7 +865,7 @@ function CrossMarketOverview({
 
       {data?.warnings.length ? (
         <div className="mb-4 rounded-2xl border border-amber-300/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-          {data.warnings.slice(0, 2).join(" ")}
+          {formatMessage(data.warnings.slice(0, 2).join(" "))}
         </div>
       ) : null}
 
@@ -879,6 +931,7 @@ export function DashboardFoundation() {
   const [symbols, setSymbols] = useState<SymbolApi[]>([]);
   const [symbol, setSymbol] = useState("BTCUSDT");
   const [timeframe, setTimeframe] = useState("1h");
+  const [chartRange, setChartRange] = useState("1d");
   const [overview, setOverview] = useState<MarketOverviewApi | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatusApi | null>(null);
   const [widgets, setWidgets] = useState<WidgetResultApi[]>([]);
@@ -891,6 +944,11 @@ export function DashboardFoundation() {
   const [error, setError] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [isCollecting, setIsCollecting] = useState(false);
+  const situationOverview = useSituationOverview({
+    symbol,
+    timeframe,
+    refreshKey: refreshCounter
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -905,7 +963,9 @@ export function DashboardFoundation() {
           setSymbol((current) => unlockedSymbols.some((item) => item.symbol === current) ? current : unlockedSymbols[0]?.symbol ?? data.symbols[0].symbol);
         }
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load symbols");
+        if (!controller.signal.aborted && !isAbortError(loadError)) {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load symbols");
+        }
       }
     }
 
@@ -932,7 +992,7 @@ export function DashboardFoundation() {
 
         const [marketData, widgetData, runtimeData, crossMarketData] = await Promise.all([
           fetchApi<MarketOverviewApi>(
-            `/api/market/overview?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=120`,
+            `/api/market/overview?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&interval=${encodeURIComponent(timeframe)}&range=${encodeURIComponent(chartRange)}&limit=120`,
             controller.signal
           ),
           fetchApi<{ results: WidgetResultApi[] }>(
@@ -971,7 +1031,7 @@ export function DashboardFoundation() {
         });
         setStatus("ready");
       } catch (loadError) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && !isAbortError(loadError)) {
           setStatus("error");
           setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard data");
         }
@@ -981,7 +1041,7 @@ export function DashboardFoundation() {
     void loadDashboard();
 
     return () => controller.abort();
-  }, [symbol, timeframe, refreshCounter]);
+  }, [symbol, timeframe, chartRange, refreshCounter]);
 
   async function refreshMarketData() {
     setIsCollecting(true);
@@ -1025,12 +1085,21 @@ export function DashboardFoundation() {
       });
     }
 
+    if (overview?.source.warning) {
+      warnings.push({
+        id: "market-source-warning",
+        tone: overview.source.isFallback ? "red" : "amber",
+        title: overview.source.isFallback ? "Using local market data" : "Incomplete market range",
+        message: overview.source.warning
+      });
+    }
+
     if (overview && overview.metrics.candleCount === 0) {
       warnings.push({
         id: "missing-market-data",
         tone: "red",
         title: "Missing candle data",
-        message: "No normalized candles are stored for this symbol and timeframe."
+        message: "No candles are available for this symbol and chart range."
       });
     }
 
@@ -1115,7 +1184,7 @@ export function DashboardFoundation() {
                 {timeframes.map((item) => (
                   <button
                     className={cn(
-                      "h-10 min-w-14 rounded-2xl px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10",
+                      "h-10 min-w-11 rounded-2xl px-3 text-sm font-semibold text-white/70 transition hover:bg-white/10",
                       item === timeframe && "bg-indigo-300/24 text-white shadow-glow"
                     )}
                     key={item}
@@ -1123,6 +1192,21 @@ export function DashboardFoundation() {
                     type="button"
                   >
                     {item}
+                  </button>
+                ))}
+              </div>
+              <div className="glass-surface flex w-fit overflow-hidden rounded-[22px] p-1">
+                {chartRanges.map((item) => (
+                  <button
+                    className={cn(
+                      "h-10 min-w-12 rounded-2xl px-3 text-sm font-semibold text-white/70 transition hover:bg-white/10",
+                      item === chartRange && "bg-cyan-300/20 text-white shadow-glow"
+                    )}
+                    key={item}
+                    onClick={() => setChartRange(item)}
+                    type="button"
+                  >
+                    {item.toUpperCase()}
                   </button>
                 ))}
               </div>
@@ -1143,11 +1227,18 @@ export function DashboardFoundation() {
 
           {error ? (
             <div className="mb-4 rounded-2xl border border-rose-300/35 bg-rose-500/12 px-5 py-3 text-sm text-rose-100">
-              {error}
+              {formatMessage(error)}
             </div>
           ) : null}
 
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
+          <SituationOverviewCard
+            error={situationOverview.error}
+            onRefresh={situationOverview.refresh}
+            overview={situationOverview.overview}
+            status={situationOverview.status}
+          />
+
+          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6">
             <MetricPill icon={<Activity className="h-8 w-8 rounded-full bg-black/60 p-1.5 text-cyan-200" />} label={`${formatPair(symbol)} Price`} value={formatNumber(metrics?.latestPrice)} />
             <MetricPill detail={metrics?.changePercent === null || metrics?.changePercent === undefined ? undefined : `${metrics.changePercent >= 0 ? "+" : ""}${formatNumber(metrics.changePercent)}%`} label="Latest Change" value={metrics?.change === null || metrics?.change === undefined ? "--" : `${metrics.change >= 0 ? "+" : ""}${formatNumber(metrics.change)}`} />
             <MetricPill label="Period High" value={formatNumber(metrics?.periodHigh)} />
@@ -1156,7 +1247,7 @@ export function DashboardFoundation() {
             <MetricPill label="Updated" value={formatTime(metrics?.updatedAt)} />
           </div>
 
-          <PriceChart candles={overview?.candles ?? []} symbol={symbol} timeframe={timeframe} />
+          <PriceChart candles={overview?.candles ?? []} range={chartRange} symbol={symbol} timeframe={timeframe} />
 
           {authSession?.isAdmin ? (
             <CrossMarketOverview
@@ -1180,6 +1271,11 @@ export function DashboardFoundation() {
               {runtimeStatus ? (
                 <StatusBadge tone={runtimeStatus.scheduler.phase2Enabled ? "green" : "amber"}>
                   Macro {runtimeStatus.scheduler.phase2Enabled ? "scheduled" : "manual"}
+                </StatusBadge>
+              ) : null}
+              {runtimeStatus ? (
+                <StatusBadge tone={runtimeStatus.liquidity.enabled ? "green" : "amber"}>
+                  Liquidity {runtimeStatus.liquidity.enabled ? "live" : "manual"}
                 </StatusBadge>
               ) : null}
               <StatusBadge tone={status === "ready" && widgets.length > 0 ? "green" : "amber"}>

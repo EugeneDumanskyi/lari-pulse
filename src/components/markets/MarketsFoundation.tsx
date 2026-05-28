@@ -25,6 +25,7 @@ import type {
   WidgetResultApi
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
+import { formatLocalDateTime, replaceIsoDatesWithLocalTime } from "@/lib/utils/formatDateTime";
 import { AppShell, EmptyState, GlassCard, GlassPanel, MetricPill, SectionHeader, StatusBadge } from "@/components/dashboard/primitives";
 
 type LoadStatus = "loading" | "ready" | "error";
@@ -63,16 +64,7 @@ function formatCompact(value: number | null | undefined) {
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) {
-    return "--";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
+  return formatLocalDateTime(value);
 }
 
 function displaySymbol(symbol: string) {
@@ -385,7 +377,7 @@ export function MarketsFoundation() {
           {error ? (
             <div className="mb-4 flex gap-3 rounded-2xl border border-rose-300/35 bg-rose-500/12 px-5 py-3 text-sm text-rose-100">
               <AlertTriangle className="h-5 w-5 shrink-0" />
-              {error}
+              {replaceIsoDatesWithLocalTime(error)}
             </div>
           ) : null}
 

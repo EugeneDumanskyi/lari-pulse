@@ -2,7 +2,7 @@
 
 This document lists the widget engines currently implemented in LariPulse.
 
-Widgets do not fetch external data directly. Collectors fetch and normalize market data into SQLite first, then widget engines read normalized candles and correlation context through services. The frontend consumes structured widget results through API endpoints.
+Widgets do not fetch external data directly. Collectors fetch and normalize market data into SQLite first, then widget engines read normalized candles, correlation context, and liquidity context through services. The frontend consumes structured widget results through API endpoints.
 
 ## Runtime Notes
 
@@ -21,6 +21,8 @@ SCHEDULER_ENABLED=true
 COLLECT_INTERVAL_SECONDS=60
 PHASE2_SCHEDULER_ENABLED=false
 PHASE2_REFRESH_INTERVAL_SECONDS=86400
+LIQUIDITY_RUNTIME_ENABLED=false
+LIQUIDATIONS_RETENTION_HOURS=2160
 ```
 
 Manual collection commands and endpoints:
@@ -29,6 +31,8 @@ Manual collection commands and endpoints:
 curl -X POST http://localhost:3000/api/collect/run
 npm run collect:fred
 ```
+
+When `LIQUIDITY_RUNTIME_ENABLED=true`, the app process also starts the Binance liquidation stream and prunes old liquidation events.
 
 Main widget result endpoints:
 
@@ -100,6 +104,18 @@ source: Binance Spot Kline API, collected through `POST /api/collect/run`; widge
 method: API collection into SQLite, deterministic multi-timeframe analysis.
 
 notes: Implemented as `multi_timeframe_alignment`. Uses the shared widget market context rather than fetching data inside the widget.
+
+---
+
+### Liquidations
+
+purpose: Summarizes observed long and short forced-order liquidations for the selected dashboard interval.
+
+source: Binance USD-M Futures `!forceOrder@arr` WebSocket stream, normalized into `liquidation_events`.
+
+method: WebSocket API collection into SQLite, interval aggregation by service, deterministic widget calculation from normalized liquidity context.
+
+notes: Implemented as `liquidations`. `SELL` forced order means long liquidation; `BUY` forced order means short liquidation. Binance's stream is live-only, so the widget reads stored local events and history starts when the local collector is running. The `90d` view only becomes meaningful after enough local collection time.
 
 ---
 
@@ -197,11 +213,11 @@ notes: Implemented as `risk_regime`. This is an explainable regime classificatio
 
 purpose: Crypto OHLCV candles for BTCUSDT, ETHUSDT, and SOLUSDT.
 
-source: Binance Spot Kline API.
+source: Binance Spot Kline API and Binance USD-M Futures liquidation WebSocket stream.
 
 method: API.
 
-notes: Used by crypto widgets and the crypto side of cross-market widgets.
+notes: Spot klines are used by crypto widgets and the crypto side of cross-market widgets. The futures liquidation stream is used by the Liquidations widget as observed runtime data.
 
 ### FRED
 
@@ -212,3 +228,4 @@ source: FRED CSV endpoints.
 method: API/CSV parsing.
 
 notes: Current mappings are `XAUUSD -> NASDAQQGLDI`, `WTI -> DCOILWTICO`, `NASDAQ100 -> NASDAQ100`, `SPX -> SP500`, `DXY -> DTWEXBGS`, `US10Y -> DGS10`, and `VIX -> VIXCLS`.
+

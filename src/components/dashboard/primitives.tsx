@@ -79,15 +79,15 @@ export function MetricPill({
   icon?: ReactNode;
 }) {
   return (
-    <GlassCard className="scroll-optimized-card h-[100px] px-5 py-4">
-      <div className="flex items-center gap-3">
+    <GlassCard className="scroll-optimized-card h-[92px] px-4 py-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         {icon}
-        <div>
-          <div className="text-sm text-white/70">{label}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-normal text-white">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-white/68">{label}</div>
+          <div className="mt-1.5 break-words text-lg font-semibold leading-tight tracking-normal text-white">
             {value}
           </div>
-          {detail ? <div className="text-sm font-medium text-emerald-300">{detail}</div> : null}
+          {detail ? <div className="text-xs font-medium text-emerald-300">{detail}</div> : null}
         </div>
       </div>
     </GlassCard>

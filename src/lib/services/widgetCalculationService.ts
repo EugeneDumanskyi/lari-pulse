@@ -8,6 +8,7 @@ import { buildPhase1MarketContext } from "@/lib/widgets/marketContext";
 import { widgetRegistry, type WidgetRegistry } from "@/lib/widgets/registry";
 import { runWidgetRegistry } from "@/lib/widgets/runner";
 import type { WidgetRunOutcome } from "@/lib/widgets/types";
+import { buildLiquidityWidgetContext } from "./liquidityWidgetContextService";
 
 export interface WidgetCalculationOptions {
   symbols?: string[];
@@ -118,7 +119,12 @@ export async function runWidgetCalculations(
           candles,
           marketContext: buildPhase1MarketContext({
             timeframeCandles,
-            latestCandleUpdatedAt: latestCandleUpdatedAt(candles)
+            latestCandleUpdatedAt: latestCandleUpdatedAt(candles),
+            liquidity: buildLiquidityWidgetContext(db, {
+              symbol,
+              timeframes,
+              now
+            })
           }),
           now
         },

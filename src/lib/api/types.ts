@@ -122,6 +122,8 @@ export interface MarketCandleApi {
 export interface MarketOverviewApi {
   symbol: string;
   timeframe: string;
+  interval: string;
+  range: string;
   candles: MarketCandleApi[];
   metrics: {
     latestPrice: number | null;
@@ -135,6 +137,13 @@ export interface MarketOverviewApi {
     updatedAt: string | null;
     isStale: boolean;
     staleReason: string | null;
+  };
+  source: {
+    provider: "binance_live" | "sqlite";
+    interval: string;
+    range: string;
+    isFallback: boolean;
+    warning: string | null;
   };
 }
 
@@ -186,6 +195,28 @@ export interface RuntimeStatusApi {
     lastPhase2RunAt: string | null;
     lastPhase2Status: "ok" | "partial" | "error" | "skipped" | null;
   };
+  liquidity: {
+    enabled: boolean;
+    started: boolean;
+    liquidationsRetentionHours: number;
+    latestRetentionPruneAt: string | null;
+    latestRetentionPrunedEvents: number | null;
+    liquidationStream: {
+      started: boolean;
+      connected: boolean;
+      reconnecting: boolean;
+      url: string;
+      symbols: string[];
+      messagesReceived: number;
+      eventsReceived: number;
+      eventsStored: number;
+      lastMessageAt: string | null;
+      lastError: string | null;
+      reconnectAttempts: number;
+      sourceRunId: number | null;
+    };
+    latestLiquidationStreamRun: SourceRunApi | null;
+  };
   collection: {
     configuredSymbols: string[];
     configuredTimeframes: string[];
@@ -197,3 +228,15 @@ export interface RuntimeStatusApi {
     warningMessages: string[];
   };
 }
+
+export type {
+  SituationBias,
+  SituationRiskLevel,
+  SituationConfidence,
+  SituationOverview,
+  SituationDriver,
+  SituationWatchCondition,
+  SituationDataWarning,
+  SituationChange,
+  SituationSourceWidget
+} from "@/lib/services/situationOverview/situationOverview.types";

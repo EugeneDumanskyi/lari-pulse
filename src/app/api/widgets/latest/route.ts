@@ -6,7 +6,7 @@ import {
   validateSymbol,
   validateSymbolAccess
 } from "@/lib/services/apiValidation";
-import { listLatestWidgetResults } from "@/lib/services/widgetResultService";
+import { listLatestWidgetResultsWithDerivedLiquidity } from "@/lib/services/widgetResultService";
 import { filterVisibleWidgetResults, getSessionFromRequest } from "@/lib/auth/access";
 import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     validateSymbolAccess(symbol, session);
     const timeframe = validateOptionalTimeframe(params.get("timeframe"));
     const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-    const results = filterVisibleWidgetResults(listLatestWidgetResults({ symbol, timeframe }), {
+    const results = filterVisibleWidgetResults(await listLatestWidgetResultsWithDerivedLiquidity({ symbol, timeframe }), {
       ...session,
       visibleWidgetIds
     });

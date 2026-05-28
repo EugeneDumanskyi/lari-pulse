@@ -8,8 +8,8 @@ import { insertWidgetResult } from "@/lib/db/repositories/widgetResultsRepositor
 import { listActiveSymbols, seedSymbols } from "@/lib/db/repositories/symbolsRepository";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
 import { getSessionFromToken, createAdminSession } from "@/lib/auth/access";
-import { ApiInputError, validateSymbol, validateSymbolAccess, validateWidgetId } from "./apiValidation";
-import { getMarketOverview } from "./marketDataService";
+import { ApiInputError, validateOptionalRange, validateSymbol, validateSymbolAccess, validateWidgetId } from "./apiValidation";
+import { getDashboardMarketOverview, getLiveMarketOverview, getMarketOverview, getStoredDashboardMarketOverview } from "./marketDataService";
 import { getRuntimeStatus } from "./runtimeStatusService";
 import { getMarkets } from "./marketCatalogService";
 import { listSymbols } from "./symbolService";
@@ -222,7 +222,9 @@ describe("API service layer", () => {
   it("rejects unsupported API query values", () => {
     assert.throws(() => validateSymbol("DOGEUSDT"), ApiInputError);
     assert.throws(() => validateWidgetId("unknown_widget"), ApiInputError);
+    assert.throws(() => validateOptionalRange("3d"), ApiInputError);
     assert.throws(() => validateSymbolAccess("ETHUSDT", getSessionFromToken(undefined)), ApiInputError);
+    assert.equal(validateOptionalRange("7D"), "7d");
     assert.equal(validateSymbolAccess("ETHUSDT", createAdminSession()), "ETHUSDT");
   });
 
@@ -263,6 +265,236 @@ describe("API service layer", () => {
     assert.equal(overview.metrics.changePercent, 1.92);
     assert.equal(overview.metrics.periodVolume, 22);
     assert.equal(overview.candles.length, 2);
+  });
+
+  it("builds dashboard 1d and 7d ranges from live Binance candles instead of stored aggregate rows", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      requestedUrls.push(url.toString());
+      const interval = url.searchParams.get("interval");
+      const limit = Number(url.searchParams.get("limit"));
+      const rows = Array.from({ length: limit }, (_, index) => {
+        const open = interval === "1h" ? 100 + index : 200 + index;
+        const close = open + 0.5;
+
+        return [
+          1710000000000 + index * 60_000,
+          String(open),
+          String(open + 2),
+          String(open - 3),
+          String(close),
+          String(10 + index),
+          1710000059999 + index * 60_000,
+          "0",
+          0,
+          "0",
+          "0",
+          "0"
+        ];
+      });
+
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    try {
+      const oneDay = await getLiveMarketOverview({ symbol: "BTCUSDT", timeframe: "1d", limit: 120 });
+      const sevenDay = await getLiveMarketOverview({ symbol: "BTCUSDT", timeframe: "7d", limit: 120 });
+
+      assert.equal(new URL(requestedUrls[0]).searchParams.get("interval"), "1h");
+      assert.equal(new URL(requestedUrls[0]).searchParams.get("limit"), "24");
+      assert.equal(oneDay.metrics.latestPrice, 123.5);
+      assert.equal(oneDay.metrics.previousClose, 100);
+      assert.equal(oneDay.metrics.change, 23.5);
+      assert.equal(oneDay.metrics.changePercent, 23.5);
+      assert.equal(oneDay.metrics.periodHigh, 125);
+      assert.equal(oneDay.metrics.periodLow, 97);
+
+      assert.equal(new URL(requestedUrls[1]).searchParams.get("interval"), "1d");
+      assert.equal(new URL(requestedUrls[1]).searchParams.get("limit"), "7");
+      assert.equal(sevenDay.metrics.latestPrice, 206.5);
+      assert.equal(sevenDay.metrics.previousClose, 200);
+      assert.equal(sevenDay.metrics.change, 6.5);
+      assert.equal(sevenDay.metrics.changePercent, 3.25);
+      assert.equal(sevenDay.metrics.periodHigh, 208);
+      assert.equal(sevenDay.metrics.periodLow, 197);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("keeps dashboard high and low tied to the exact returned chart range", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      requestedUrls.push(url.toString());
+      const rows = Array.from({ length: 24 }, (_, index) => {
+        const open = 70_000 + index * 10;
+        const high = index === 4 ? 71_250 : open + 25;
+        const low = index === 9 ? 69_850 : open - 20;
+        const close = open + 5;
+
+        return [
+          1710000000000 + index * 3_600_000,
+          String(open),
+          String(high),
+          String(low),
+          String(close),
+          "10",
+          1710003599999 + index * 3_600_000,
+          "0",
+          0,
+          "0",
+          "0",
+          "0"
+        ];
+      });
+
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    try {
+      const overview = await getLiveMarketOverview({
+        symbol: "BTCUSDT",
+        timeframe: "1h",
+        interval: "1h",
+        range: "1d",
+        limit: 120
+      });
+
+      assert.equal(new URL(requestedUrls[0]).searchParams.get("interval"), "1h");
+      assert.equal(new URL(requestedUrls[0]).searchParams.get("limit"), "24");
+      assert.equal(overview.range, "1d");
+      assert.equal(overview.source.provider, "binance_live");
+      assert.equal(overview.metrics.candleCount, overview.candles.length);
+      assert.equal(overview.metrics.periodHigh, Math.max(...overview.candles.map((candle) => candle.high)));
+      assert.equal(overview.metrics.periodLow, Math.min(...overview.candles.map((candle) => candle.low)));
+      assert.equal(overview.metrics.periodHigh, 71_250);
+      assert.equal(overview.metrics.periodLow, 69_850);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("marks dashboard overview as fallback when live candles are unavailable", async () => {
+    const originalFetch = globalThis.fetch;
+    const db = createMemoryDatabase();
+
+    upsertCandles(
+      db,
+      Array.from({ length: 24 }, (_, index) => ({
+        symbol: "BTCUSDT",
+        timeframe: "1h",
+        openTime: 1710000000000 + index * 3_600_000,
+        closeTime: 1710003599999 + index * 3_600_000,
+        open: 100 + index,
+        high: 102 + index,
+        low: 98 + index,
+        close: 101 + index,
+        volume: 10,
+        source: "binance"
+      }))
+    );
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ code: -1000, msg: "network unavailable" }), {
+        status: 503,
+        headers: { "content-type": "application/json" }
+      });
+
+    try {
+      const liveFallback = await getDashboardMarketOverview({
+        symbol: "BTCUSDT",
+        timeframe: "1h",
+        interval: "1h",
+        range: "1d"
+      }, db);
+
+      const storedFallback = getStoredDashboardMarketOverview(
+        {
+          symbol: "BTCUSDT",
+          timeframe: "1h",
+          interval: "1h",
+          range: "1d",
+          fallbackReason: "Live Binance candles unavailable."
+        },
+        db
+      );
+
+      assert.equal(liveFallback.source.isFallback, true);
+      assert.equal(liveFallback.source.provider, "sqlite");
+      assert.match(liveFallback.source.warning ?? "", /Live Binance candles unavailable/);
+      assert.equal(storedFallback.source.isFallback, true);
+      assert.equal(storedFallback.metrics.candleCount, 24);
+      assert.match(storedFallback.source.warning ?? "", /Live Binance candles unavailable/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("uses the same dashboard range definitions for stored fallback data", () => {
+    const db = createMemoryDatabase();
+
+    upsertCandles(db, [
+      ...Array.from({ length: 24 }, (_, index) => ({
+        symbol: "BTCUSDT",
+        timeframe: "1h",
+        openTime: 1710000000000 + index * 3_600_000,
+        closeTime: 1710003599999 + index * 3_600_000,
+        open: 100 + index,
+        high: 102 + index,
+        low: 98 + index,
+        close: 101 + index,
+        volume: 10,
+        source: "binance"
+      })),
+      ...Array.from({ length: 7 }, (_, index) => ({
+        symbol: "BTCUSDT",
+        timeframe: "1d",
+        openTime: 1711000000000 + index * 86_400_000,
+        closeTime: 1711086399999 + index * 86_400_000,
+        open: 200 + index,
+        high: 203 + index,
+        low: 197 + index,
+        close: 201 + index,
+        volume: 20,
+        source: "binance"
+      })),
+      {
+        symbol: "BTCUSDT",
+        timeframe: "7d",
+        openTime: 1700000000000,
+        closeTime: 1700604799999,
+        open: 1,
+        high: 69_950,
+        low: 66_925,
+        close: 1,
+        volume: 1,
+        source: "binance"
+      }
+    ]);
+
+    const oneDay = getStoredDashboardMarketOverview({ symbol: "BTCUSDT", timeframe: "1d" }, db);
+    const sevenDay = getStoredDashboardMarketOverview({ symbol: "BTCUSDT", timeframe: "7d" }, db);
+
+    assert.equal(oneDay.candles.length, 24);
+    assert.equal(oneDay.metrics.previousClose, 100);
+    assert.equal(oneDay.metrics.latestPrice, 124);
+    assert.equal(sevenDay.candles.length, 7);
+    assert.equal(sevenDay.metrics.previousClose, 200);
+    assert.equal(sevenDay.metrics.latestPrice, 207);
+    assert.equal(sevenDay.metrics.periodHigh, 209);
+    assert.equal(sevenDay.metrics.periodLow, 197);
   });
 
   it("reports runtime collector failure without exposing raw metadata", () => {

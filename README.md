@@ -10,6 +10,8 @@ LariPulse is a local-first market intelligence platform. It turns Binance and FR
 - Crypto widgets: Trend Strength, Momentum Exhaustion, Support / Resistance Pressure, Volume Confirmation, Multi-Timeframe Alignment
 - Cross-market widgets: Macro Risk Pulse, Dollar Pressure, Gold / Risk Hedge, Oil Inflation Pressure, Nasdaq-Crypto Correlation, Cross-Market Divergence, Risk-On / Risk-Off Regime
 - Correlation engine: returns, rolling Pearson correlation, divergence and volatility-adjusted moves
+- Liquidations widget built from the Binance USD-M Futures forced-order stream
+- Situation Overview: a deterministic summary of bias, risk, drivers, conflicts and watch conditions
 - Typed API that never exposes raw source payloads
 - Optional in-process scheduler
 - Dashboard, Markets directory and Settings views
@@ -50,6 +52,7 @@ The initializer creates these tables:
 - `widget_results`
 - `source_runs`
 - `widget_settings`
+- `liquidation_events`
 
 To reset the local database, stop the app and remove `data/laripulse.sqlite` plus any adjacent SQLite WAL/SHM files, then run `npm run db:init` again.
 
@@ -94,6 +97,45 @@ npm run collect:fred
 ```
 
 This seeds the cross-market symbol metadata, fetches daily observations, normalizes them into the shared `candles` table and logs the run in `source_runs`.
+
+## Liquidations
+
+The Liquidations widget reads observed forced orders from the Binance USD-M Futures stream:
+
+```text
+wss://fstream.binance.com/ws/!forceOrder@arr
+```
+
+The collector normalizes events into `liquidation_events` with this side mapping:
+
+```text
+SELL forced order = long liquidation
+BUY forced order = short liquidation
+```
+
+Events are deduplicated by a deterministic event id. A service aggregates them for dashboard intervals (`1h`, `4h`, `1d`, `7d`, `30d`, `90d`). The stream is live-only, so history starts when the local collector starts running; it is not a complete historical liquidation feed. Raw stream payloads never reach the dashboard.
+
+The widget reads normalized summaries through `WidgetContext.marketContext.liquidity`. It never opens WebSockets or reads the database itself.
+
+The liquidity runtime is disabled by default. Enable it in `.env.local`:
+
+```text
+LIQUIDITY_RUNTIME_ENABLED=true
+LIQUIDATIONS_RETENTION_HOURS=48
+BINANCE_LIQUIDATION_STREAM_URL=wss://fstream.binance.com/ws/!forceOrder@arr
+```
+
+When enabled, the Next.js process also keeps the stream connected and prunes old events. There is no separate worker. See `docs/LIQUIDATIONS_WIDGET.md` for details.
+
+## Situation Overview
+
+The Situation Overview turns the latest widget results into one deterministic market-state read: bias, risk level, confidence, main drivers, conflicting signals, watch conditions, data warnings and changes since the previous calculation.
+
+```bash
+curl "http://localhost:3000/api/overview/situation?symbol=BTCUSDT&timeframe=1h"
+```
+
+It follows current widget visibility and never produces buy, sell, entry or exit instructions. See `docs/SITUATION_OVERVIEW.md`.
 
 ## Indicators
 
@@ -166,6 +208,7 @@ curl "http://localhost:3000/api/runtime/status"
 curl "http://localhost:3000/api/widgets/latest?symbol=BTCUSDT&timeframe=1h"
 curl "http://localhost:3000/api/widgets/history?symbol=BTCUSDT&widgetId=trend_strength&limit=10"
 curl "http://localhost:3000/api/widgets/cross-market?timeframe=1d"
+curl "http://localhost:3000/api/overview/situation?symbol=BTCUSDT&timeframe=1h"
 ```
 
 ```bash
@@ -283,6 +326,7 @@ npm run test:scheduler
 Verification suite:
 
 ```bash
+npm run test:db
 npm run test:indicators
 npm run test:correlations
 npm run test:collectors
@@ -294,13 +338,26 @@ npm run typecheck
 npm run build
 ```
 
+## End-to-End Tests
+
+Playwright specs in `tests/e2e/` mock the API layer and check the dashboard on mobile, tablet and desktop viewports:
+
+- `dashboard.spec.ts`: health, routing, widget details and layout overflow
+- `widgets.numeric.spec.ts`: numeric formatting for liquidity and correlation widgets
+- `crypto-macro.numeric.spec.ts`: numeric formatting for crypto and cross-market widgets
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## Design Constraints
 
 LariPulse uses SQLite, Binance and FRED only. It does not require Redis, PostgreSQL, Docker, Kubernetes, microservices, paid APIs or a model-based prediction layer.
 
 The UI is built with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, Framer Motion and lucide-react. The visual direction is a dark-mode-first glass interface: translucent panels, backdrop blur, soft borders, calm blue/gray tones and generous spacing.
 
-See `docs/architecture.md` for the design, `docs/widgets.md` for the widget inventory and `CONTRIBUTING.md` for contribution rules.
+See `docs/architecture.md` for the design, `docs/widgets.md` for the widget inventory, `docs/SITUATION_OVERVIEW.md` and `docs/LIQUIDATIONS_WIDGET.md` for those features, and `CONTRIBUTING.md` for contribution rules.
 
 ## Disclaimer
 

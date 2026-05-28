@@ -10,11 +10,15 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:init": "tsx src/lib/db/initialize.ts",
     "collect:fred": "tsx src/lib/services/fredCollectionService.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:db": "tsx --test src/lib/db/**/*.test.ts",
     "test:correlations": "tsx --test src/lib/correlations/*.test.ts",
     "test:collectors": "tsx --test src/lib/collectors/*.test.ts",
     "test:indicators": "tsx --test src/lib/indicators/*.test.ts",
     "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/phase1/*.test.ts src/lib/widgets/phase2/*.test.ts",
-    "test:services": "tsx --test src/lib/services/*.test.ts",
+    "test:services": "tsx --test src/lib/services/*.test.ts src/lib/services/**/*.test.ts",
     "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts"
   },
   "dependencies": {
@@ -28,14 +32,17 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.60.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.10",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.3.5",

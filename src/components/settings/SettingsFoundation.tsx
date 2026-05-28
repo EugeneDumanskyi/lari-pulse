@@ -10,6 +10,7 @@ import type {
   WidgetSettingsApi
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
+import { replaceIsoDatesWithLocalTime } from "@/lib/utils/formatDateTime";
 import { AppShell, GlassPanel, StatusBadge } from "@/components/dashboard/primitives";
 
 async function fetchApi<T>(url: string, signal?: AbortSignal) {
@@ -25,6 +26,10 @@ async function fetchApi<T>(url: string, signal?: AbortSignal) {
 
 function groupCatalog(catalog: WidgetCatalogItemApi[], group: WidgetCatalogItemApi["group"]) {
   return catalog.filter((item) => item.group === group).sort((left, right) => left.priority - right.priority);
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 export function SettingsFoundation() {
@@ -62,7 +67,7 @@ export function SettingsFoundation() {
       try {
         await loadSettings(controller.signal);
       } catch (settingsError) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && !isAbortError(settingsError)) {
           setPanelError(settingsError instanceof Error ? settingsError.message : "Unable to load settings");
         }
       } finally {
@@ -193,7 +198,7 @@ export function SettingsFoundation() {
 
           {panelError ? (
             <div className="mb-4 rounded-2xl border border-rose-300/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-100">
-              {panelError}
+              {replaceIsoDatesWithLocalTime(panelError)}
             </div>
           ) : null}
           {message ? (
@@ -245,7 +250,7 @@ export function SettingsFoundation() {
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-white/54">Username</span>
                     <input
-                      className="h-11 w-full rounded-2xl border border-white/12 bg-slate-950/28 px-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-sky-200/40"
+                      className="h-11 w-full rounded-2xl border border-white/18 bg-white/90 px-4 text-sm font-medium text-slate-950 caret-sky-600 outline-none transition placeholder:text-slate-500 focus:border-sky-200/50 focus:bg-white"
                       onChange={(event) => setUsername(event.target.value)}
                       value={username}
                     />
@@ -253,7 +258,7 @@ export function SettingsFoundation() {
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-white/54">Password</span>
                     <input
-                      className="h-11 w-full rounded-2xl border border-white/12 bg-slate-950/28 px-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-sky-200/40"
+                      className="h-11 w-full rounded-2xl border border-white/18 bg-white/90 px-4 text-sm font-medium text-slate-950 caret-sky-600 outline-none transition placeholder:text-slate-500 focus:border-sky-200/50 focus:bg-white"
                       onChange={(event) => setPassword(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {

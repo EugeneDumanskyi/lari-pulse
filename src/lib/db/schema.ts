@@ -64,6 +64,21 @@ CREATE TABLE IF NOT EXISTS widget_settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS liquidation_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id TEXT NOT NULL UNIQUE,
+  symbol TEXT NOT NULL,
+  source TEXT NOT NULL,
+  event_time INTEGER NOT NULL,
+  liquidation_side TEXT NOT NULL CHECK (liquidation_side IN ('long', 'short')),
+  order_side TEXT NOT NULL,
+  price REAL NOT NULL,
+  quantity REAL NOT NULL,
+  notional_usd REAL NOT NULL,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe_open_time
   ON candles(symbol, timeframe, open_time);
 
@@ -81,4 +96,10 @@ CREATE INDEX IF NOT EXISTS idx_symbols_asset_type_source
 
 CREATE INDEX IF NOT EXISTS idx_widget_settings_enabled
   ON widget_settings(is_enabled);
+
+CREATE INDEX IF NOT EXISTS idx_liquidation_events_symbol_time
+  ON liquidation_events(symbol, event_time);
+
+CREATE INDEX IF NOT EXISTS idx_liquidation_events_source_time
+  ON liquidation_events(source, event_time);
 `;
