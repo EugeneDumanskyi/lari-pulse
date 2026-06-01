@@ -88,6 +88,23 @@ export interface SituationOverview {
     usedFallbacks: string[];
     isPartial: boolean;
   };
+  history?: SituationOverviewHistoryItem[];
+}
+
+export interface SituationOverviewHistoryItem {
+  id: number;
+  symbol: string;
+  timeframe: string;
+  generatedAt: string;
+  title: string;
+  summary: string;
+  bias: SituationBias;
+  riskLevel: SituationRiskLevel;
+  confidence: SituationConfidence;
+  score: number;
+  riskScore: number;
+  topDriver: string | null;
+  changeLabels: string[];
 }
 
 export interface SituationOverviewBuildInput {
@@ -100,4 +117,3 @@ export interface SituationOverviewBuildInput {
   expectedWidgetIds?: string[];
   previousOverview?: SituationOverview | null;
 }
-

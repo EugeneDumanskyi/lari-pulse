@@ -9,6 +9,7 @@ import { widgetRegistry, type WidgetRegistry } from "@/lib/widgets/registry";
 import { runWidgetRegistry } from "@/lib/widgets/runner";
 import type { WidgetRunOutcome } from "@/lib/widgets/types";
 import { buildLiquidityWidgetContext } from "./liquidityWidgetContextService";
+import { buildDerivativesWidgetContext } from "./derivativesWidgetContextService";
 
 export interface WidgetCalculationOptions {
   symbols?: string[];
@@ -124,6 +125,10 @@ export async function runWidgetCalculations(
               symbol,
               timeframes,
               now
+            }),
+            derivatives: buildDerivativesWidgetContext(db, {
+              symbol,
+              timeframes
             })
           }),
           now

@@ -72,6 +72,7 @@ These cover short-term, swing and higher-timeframe structure.
 ```text
 Binance Spot API (public klines, no key required)
 Binance USD-M Futures forced-order stream (public WebSocket)
+Binance USD-M Futures market data (public REST)
 FRED CSV series (daily, no key required)
 ```
 
@@ -230,6 +231,16 @@ index(symbol, event_time)
 
 Liquidity data lives in its own table, never in `candles`.
 
+### Other tables
+
+```text
+derivatives_metrics   normalized public futures context per symbol and period
+situation_overviews   persisted Situation Overview snapshots
+alert_rules           local alert rules
+alert_events          alert events, deduplicated while open
+portfolio_items       locally tracked holdings and watchlist entries
+```
+
 ## Widget Contract
 
 ```ts
@@ -369,6 +380,7 @@ export interface WidgetMarketContext {
   correlations?: CorrelationPairResult[];
   regimeHints?: MarketRegimeHint[];
   liquidity?: WidgetLiquidityContext;
+  derivatives?: Record<string, Record<string, WidgetDerivativesContext | undefined>>;
   latestCandleUpdatedAt?: string;
   metadata?: Record<string, unknown>;
 }
@@ -441,6 +453,38 @@ changes since the previous calculation
 
 Trend, momentum, volume and multi-timeframe alignment carry most of the directional weight. Support/resistance adds a smaller modifier, liquidations mostly affect risk, and cross-market widgets add context. It is exposed through `GET /api/overview/situation` and never produces trade instructions.
 
+## Derivatives Pressure
+
+```text
+Binance USD-M Futures public REST
+  ↓
+binanceDerivativesCollector
+  ↓
+derivatives_metrics
+  ↓
+derivativesWidgetContextService → WidgetContext.marketContext.derivatives
+  ↓
+derivatives_pressure widget
+```
+
+Endpoints: `/fapi/v1/premiumIndex`, `/fapi/v1/fundingRate`, `/fapi/v1/openInterest`, `/futures/data/openInterestHist`, `/futures/data/globalLongShortAccountRatio` and `/futures/data/basis`. Source runs are logged as `binance_futures` / `binance_derivatives`. No account data, keys, positions or orders are stored.
+
+## Alerts
+
+Alert rules are evaluated from Situation Overview state in the service layer, never in React. Rule types: bias changed, risk level changed, watch condition appeared, widget direction changed and score crossed a threshold. Open events are deduplicated by rule, symbol, timeframe and trigger key until acknowledged. Alerts are in-app only.
+
+## Opportunity Radar
+
+`opportunityRadarService` scores accessible symbol/timeframe pairs from deterministic Situation Overview fields into a setup score and a separate attention score. Radar scans never trigger alert events. Results are ranked context, not trade instructions, targets or sizing.
+
+## Chart Overlays
+
+`chartOverlayService` extracts descriptive levels from visible widget details (support/resistance zones, the largest observed liquidation) and from persisted watch conditions that name a price. Components render the overlays; they never parse widget details.
+
+## Portfolio
+
+`portfolioContextService` enriches local `portfolio_items` with the latest stored price, market value, unrealized P/L, concentration, the latest 1h Situation Overview, its strongest driver and active watch conditions. It stores no exchange keys, balances, positions or orders, and widget engines stay portfolio-agnostic.
+
 ## Access and Visibility
 
 A local access model limits what anonymous visitors see: BTC and the core widgets. The local admin unlocks all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
@@ -471,6 +515,15 @@ GET  /api/widgets/latest?symbol=SOLUSDT&timeframe=1h
 GET  /api/widgets/history?symbol=SOLUSDT&widgetId=trend_strength
 GET  /api/widgets/cross-market?timeframe=1d
 GET  /api/overview/situation?symbol=BTCUSDT&timeframe=1h
+GET  /api/overview/situation/history?symbol=BTCUSDT&timeframe=1h
+GET  /api/market/overlays?symbol=BTCUSDT&timeframe=1h
+GET  /api/radar/opportunities
+GET|POST|PUT|DELETE /api/alerts/rules[/:id]
+GET  /api/alerts/events
+POST /api/alerts/events/:id/ack
+POST /api/alerts/evaluate
+GET|POST|PUT|DELETE /api/portfolio[/:id]
+POST /api/derivatives/run
 GET  /api/markets
 GET  /api/markets/overview?symbol=BTCUSDT
 GET  /api/settings/widgets
@@ -515,7 +568,7 @@ Situation Overview card
 Cross-market section
 ```
 
-The sidebar also opens Markets (a read-only directory of every configured series with freshness, source notes and a compact chart) and Settings.
+The sidebar also opens Markets (a read-only directory of every configured series with freshness, source notes and a compact chart), Radar, Alerts, Portfolio and Settings.
 
 Each widget card shows title, score, direction, confidence, severity, short summary, updated time and a details button. The details view shows the full summary, indicator values, source references, timestamps and any conflicts or warnings. Stale or missing data is always visible.
 

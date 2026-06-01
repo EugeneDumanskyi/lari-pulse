@@ -32,13 +32,16 @@ Flow:
 latest widget_results + derived liquidity result
   + stored market overview metrics
   + admin cross-market widgets when visible
+  + latest persisted situation_overviews row
   -> situation overview service
   -> deterministic rules/scoring
+  -> persist material overview snapshots
+  -> evaluate matching local alert rules
   -> GET /api/overview/situation
   -> dashboard Situation Overview card
 ```
 
-The service reuses existing widget result contracts. It does not fetch external market data directly.
+The service reuses existing widget result contracts. It does not fetch external market data directly. Situation snapshots are stored in SQLite so previous-state comparison and compact timeline review survive page reloads and server restarts.
 
 ## Input Widgets
 
@@ -116,6 +119,7 @@ Main fields:
 - `watchConditions`
 - `dataWarnings`
 - `changedSincePrevious`
+- `history`
 - `sourceWidgets`
 - `meta`
 
@@ -134,13 +138,14 @@ UI states:
 - watch conditions
 - data warnings
 - changed-since-previous block
+- persisted situation timeline
 - collapsible source widget status
 
 The card preserves the existing dark glass dashboard style and keeps the financial-advice disclaimer subtle.
 
 ## Previous-State Comparison
 
-The service uses an in-memory per-session-plan/symbol/timeframe cache for previous overview comparison.
+Previous-state comparison reads the latest persisted `situation_overviews` row for the current local access plan, symbol, and timeframe.
 
 Compared fields:
 
@@ -150,7 +155,25 @@ Compared fields:
 - confidence
 - top driver
 
-This is intentionally minimal. A later version can persist overviews in SQLite if historical situation timelines become product-critical.
+The service persists a new snapshot when the overview materially changes or when there is no snapshot for that access plan/symbol/timeframe in the last 15 minutes. The compact history API is:
+
+```text
+GET /api/overview/situation/history?symbol=BTCUSDT&timeframe=1h&limit=50
+```
+
+The history response is designed for timeline UI, not full replay. It includes timestamp, title, bias, risk, confidence, score, risk score, top driver, and change labels.
+
+## Alert Integration
+
+The overview service evaluates enabled local alert rules after each Situation Overview build. Rules are scoped by local access plan, symbol, and timeframe. They can create in-app events for:
+
+- bias changes
+- risk-level changes
+- new watch conditions
+- main driver changes
+- directional score threshold crossings
+
+Alert events are persisted in `alert_events`, deduped while open, and acknowledged through the Alerts workspace or `POST /api/alerts/events/:id/ack`. There are no external notifications, push services, or background queues.
 
 ## Tests
 
@@ -174,12 +197,14 @@ Fixtures cover:
 - missing data / partial overview
 - observed liquidation history
 - previous-vs-current change detection
+- situation overview repository persistence and timeline ordering
+- alert service event creation and dedupe behavior
 
 ## Limitations
 
 - The overview is only as current as the stored widget results.
 - Liquidation event history is locally observed only while runtime is connected.
 - Cross-market inputs use daily proxy data and are admin-visible only in the local access model.
-- The previous-state cache resets when the Next.js process restarts.
+- Persisted history is local to the SQLite file and separated by local access plan.
 - The summary is deterministic and rule-based.
 

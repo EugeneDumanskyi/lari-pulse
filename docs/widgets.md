@@ -23,12 +23,15 @@ PHASE2_SCHEDULER_ENABLED=false
 PHASE2_REFRESH_INTERVAL_SECONDS=86400
 LIQUIDITY_RUNTIME_ENABLED=false
 LIQUIDATIONS_RETENTION_HOURS=2160
+BINANCE_FUTURES_BASE_URL=https://fapi.binance.com
+BINANCE_DERIVATIVES_HISTORY_LIMIT=30
 ```
 
 Manual collection commands and endpoints:
 
 ```bash
 curl -X POST http://localhost:3000/api/collect/run
+curl -X POST http://localhost:3000/api/derivatives/run
 npm run collect:fred
 ```
 
@@ -41,6 +44,18 @@ GET /api/widgets/latest?symbol=SOLUSDT
 GET /api/widgets/latest?symbol=SOLUSDT&timeframe=1h
 GET /api/widgets/history?symbol=SOLUSDT&widgetId=trend_strength
 GET /api/widgets/cross-market?timeframe=1d
+GET /api/market/overlays?symbol=BTCUSDT&timeframe=1h
+```
+
+Chart overlays are not widget engines. They are compact chart annotations extracted in `src/lib/services/chartOverlayService.ts` from visible widget result details and persisted Situation Overview watch conditions. The dashboard renders the overlay records and reason popovers, but does not parse widget detail JSON directly.
+
+Local alerts are not widget engines. They watch persisted Situation Overview transitions and store in-app events through `alert_rules` and `alert_events`. Relevant endpoints:
+
+```text
+GET /api/alerts/rules
+POST /api/alerts/rules
+GET /api/alerts/events
+POST /api/alerts/evaluate
 ```
 
 ## Crypto Widgets
@@ -116,6 +131,18 @@ source: Binance USD-M Futures `!forceOrder@arr` WebSocket stream, normalized int
 method: WebSocket API collection into SQLite, interval aggregation by service, deterministic widget calculation from normalized liquidity context.
 
 notes: Implemented as `liquidations`. `SELL` forced order means long liquidation; `BUY` forced order means short liquidation. Binance's stream is live-only, so the widget reads stored local events and history starts when the local collector is running. The `90d` view only becomes meaningful after enough local collection time.
+
+---
+
+### Derivatives Pressure
+
+purpose: Interprets Binance USD-M Futures funding, open interest, long/short account ratio, and perpetual basis as context around the selected crypto market state.
+
+source: Binance USD-M Futures public REST endpoints, collected through `POST /api/derivatives/run` into `derivatives_metrics`.
+
+method: API collection into SQLite, latest-context service assembly, deterministic widget calculation from `WidgetContext.marketContext.derivatives`.
+
+notes: Implemented as `derivatives_pressure`. It is an Enterprise crypto widget. It flags crowded longs, crowded shorts, leverage cooling, premium, discount, or balanced derivatives pressure. The signal is contextual risk information, not a trading instruction and not account-specific.
 
 ---
 
@@ -211,13 +238,13 @@ notes: Implemented as `risk_regime`. This is an explainable regime classificatio
 
 ### Binance
 
-purpose: Crypto OHLCV candles for BTCUSDT, ETHUSDT, and SOLUSDT.
+purpose: Crypto OHLCV candles for BTCUSDT, ETHUSDT, and SOLUSDT, plus selected public USD-M Futures context.
 
-source: Binance Spot Kline API and Binance USD-M Futures liquidation WebSocket stream.
+source: Binance Spot Kline API, Binance USD-M Futures liquidation WebSocket stream, and Binance USD-M Futures REST market-data endpoints for mark price/funding, funding history, open interest, long/short account ratio, and basis.
 
 method: API.
 
-notes: Spot klines are used by crypto widgets and the crypto side of cross-market widgets. The futures liquidation stream is used by the Liquidations widget as observed runtime data.
+notes: Spot klines are used by crypto widgets and the crypto side of cross-market widgets. The futures liquidation stream is used by the Liquidations widget as observed runtime data. The derivatives REST endpoints feed the Derivatives Pressure widget through normalized local rows.
 
 ### FRED
 

@@ -1,19 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
   ChevronDown,
   CircleDot,
   Gauge,
+  History,
   Info,
   ListChecks,
   RefreshCw,
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  WalletCards
 } from "lucide-react";
 import type {
+  ApiEnvelope,
+  PortfolioContextApi,
+  PortfolioItemApi,
   SituationConfidence,
   SituationDriver,
   SituationOverview,
@@ -96,6 +101,54 @@ function scoreTone(score: number) {
   return "text-cyan-100";
 }
 
+function formatTimelineTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+async function fetchPortfolioCallout(signal: AbortSignal) {
+  const response = await fetch("/api/portfolio", { signal });
+  const body = (await response.json()) as ApiEnvelope<PortfolioContextApi> | { status: "error"; message: string };
+
+  if (!response.ok || body.status === "error") {
+    return null;
+  }
+
+  return body.data;
+}
+
+function formatMoney(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "--";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2
+  }).format(value);
+}
+
+function formatNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "--";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 6
+  }).format(value);
+}
+
 function LoadingOverview() {
   return (
     <GlassPanel className="mb-4 p-5 md:p-6">
@@ -173,6 +226,35 @@ export function SituationOverviewCard({
   onRefresh: () => void;
 }) {
   const [showSources, setShowSources] = useState(false);
+  const [portfolioItem, setPortfolioItem] = useState<PortfolioItemApi | null>(null);
+
+  useEffect(() => {
+    if (!overview?.symbol) {
+      setPortfolioItem(null);
+      return;
+    }
+
+    const overviewSymbol = overview.symbol;
+    const controller = new AbortController();
+
+    async function loadPortfolioContext() {
+      try {
+        const portfolio = await fetchPortfolioCallout(controller.signal);
+
+        if (!controller.signal.aborted) {
+          setPortfolioItem(portfolio?.items.find((item) => item.symbol === overviewSymbol) ?? null);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setPortfolioItem(null);
+        }
+      }
+    }
+
+    void loadPortfolioContext();
+
+    return () => controller.abort();
+  }, [overview?.symbol]);
 
   if (status === "loading" && !overview) {
     return <LoadingOverview />;
@@ -199,6 +281,7 @@ export function SituationOverviewCard({
   const showConflicts = overview.conflictingSignals.length > 0;
   const showWatchConditions = overview.watchConditions.length > 0;
   const showDataWarnings = overview.dataWarnings.length > 0;
+  const timeline = overview.history?.slice(0, 5) ?? [];
 
   return (
     <GlassPanel className="mb-4 p-5 md:p-6">
@@ -280,6 +363,66 @@ export function SituationOverviewCard({
                 ))}
               </div>
             </div>
+          ) : null}
+
+          {portfolioItem ? (
+            <div className="mt-4 rounded-2xl border border-sky-200/24 bg-sky-300/8 px-4 py-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-sky-100/58">
+                <WalletCards className="h-4 w-4" />
+                Portfolio context
+              </div>
+              <div className="grid gap-3 text-sm text-white/72 md:grid-cols-3">
+                <div>
+                  <div className="text-xs text-white/46">{portfolioItem.quantity === 0 ? "Watched" : "Quantity"}</div>
+                  <div className="mt-1 font-semibold text-white">{portfolioItem.quantity === 0 ? "Watch only" : formatNumber(portfolioItem.quantity)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-white/46">Market value</div>
+                  <div className="mt-1 font-semibold text-white">{formatMoney(portfolioItem.marketValue)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-white/46">Unrealized P/L</div>
+                  <div className={cn("mt-1 font-semibold", (portfolioItem.unrealizedPnl ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                    {formatMoney(portfolioItem.unrealizedPnl)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {timeline.length > 0 ? (
+            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/48">
+                <History className="h-4 w-4" />
+                Situation timeline
+              </div>
+              <div className="space-y-2.5">
+                {timeline.map((item) => (
+                  <div className="grid gap-2 rounded-2xl border border-white/8 bg-slate-950/18 px-3 py-2.5 sm:grid-cols-[118px_1fr] sm:items-start" key={item.id}>
+                    <div className="text-xs font-semibold text-white/46">{formatTimelineTime(item.generatedAt)}</div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <span className={cn("font-semibold capitalize", scoreTone(item.score))}>
+                          {readable(item.bias)}
+                        </span>
+                        <span className="text-white/32">·</span>
+                        <span className="capitalize text-white/58">risk {item.riskLevel}</span>
+                        <span className="text-white/32">·</span>
+                        <span className="capitalize text-white/58">{item.confidence} confidence</span>
+                      </div>
+                      <div className="mt-1 truncate text-sm font-semibold text-white/82">{item.title}</div>
+                      <div className="mt-1 text-xs leading-5 text-white/52">
+                        {item.changeLabels.length > 0
+                          ? item.changeLabels.join(", ")
+                          : item.topDriver
+                            ? `Top driver: ${item.topDriver}`
+                            : "Periodic snapshot"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           ) : null}
         </div>
 

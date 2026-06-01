@@ -5,6 +5,7 @@ import type { MarketRegimeHint, WidgetLiquidityContext, WidgetMarketContext } fr
 export interface Phase1MarketContextInput {
   timeframeCandles?: Record<string, CandleRecord[]>;
   liquidity?: WidgetLiquidityContext;
+  derivatives?: WidgetMarketContext["derivatives"];
   latestCandleUpdatedAt?: string;
 }
 
@@ -20,6 +21,7 @@ export function buildPhase1MarketContext(input: Phase1MarketContextInput): Widge
   return {
     timeframeCandles: input.timeframeCandles,
     liquidity: input.liquidity,
+    derivatives: input.derivatives,
     latestCandleUpdatedAt: input.latestCandleUpdatedAt
   };
 }
@@ -31,6 +33,7 @@ export function buildCrossMarketContext(input: CrossMarketContextInput): WidgetM
     correlations: input.correlations,
     regimeHints: input.regimeHints,
     liquidity: input.liquidity,
+    derivatives: input.derivatives,
     latestCandleUpdatedAt: input.latestCandleUpdatedAt,
     metadata: input.metadata
   };
@@ -72,4 +75,12 @@ export function getLiquidationSummary(
   timeframe: string
 ) {
   return marketContext?.liquidity?.liquidationSummaries?.[symbol]?.[timeframe] ?? null;
+}
+
+export function getDerivativesContext(
+  marketContext: WidgetMarketContext | undefined,
+  symbol: string,
+  period: string
+) {
+  return marketContext?.derivatives?.[symbol]?.[period] ?? null;
 }

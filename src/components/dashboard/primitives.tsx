@@ -14,15 +14,18 @@ import {
   LoaderCircle,
   LucideIcon,
   Menu,
+  Radar,
   Search,
   Settings,
   Sparkles,
   Star,
+  WalletCards,
   X
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LariPulseLogo } from "@/components/brand/LariPulseLogo";
 import { cn } from "@/lib/utils/cn";
 
 export function GlassPanel({
@@ -332,7 +335,7 @@ export function AppShell({
   activeItem = "dashboard"
 }: {
   children: ReactNode;
-  activeItem?: "dashboard" | "markets" | "settings";
+  activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "settings";
 }) {
   const router = useRouter();
   const nav: Array<{
@@ -344,7 +347,9 @@ export function AppShell({
   }> = [
     { icon: Grid2X2, label: "Dashboard", active: activeItem === "dashboard", onClick: () => router.push("/dashboard") },
     { icon: BarChart3, label: "Markets", active: activeItem === "markets", onClick: () => router.push("/markets") },
-    { icon: Bell, label: "Alerts", active: false, disabled: true },
+    { icon: Bell, label: "Alerts", active: activeItem === "alerts", onClick: () => router.push("/alerts") },
+    { icon: Radar, label: "Radar", active: activeItem === "radar", onClick: () => router.push("/radar") },
+    { icon: WalletCards, label: "Portfolio", active: activeItem === "portfolio", onClick: () => router.push("/portfolio") },
     { icon: Star, label: "Watchlist", active: false, disabled: true },
     { icon: Search, label: "Scans", active: false, disabled: true },
     { icon: Sparkles, label: "Insights", active: false, disabled: true },
@@ -356,11 +361,8 @@ export function AppShell({
     <main className="min-h-screen p-3 text-white md:p-4">
       <div className="mx-auto flex min-h-[calc(100vh-24px)] max-w-[1620px] overflow-hidden rounded-[28px] border border-white/14 bg-slate-950/22 shadow-[0_0_0_1px_rgba(119,156,255,0.18),0_32px_90px_rgba(0,5,18,0.5)] backdrop-blur-sm">
         <aside className="glass-surface hidden w-[236px] shrink-0 rounded-[28px] p-5 lg:flex lg:flex-col">
-          <div className="mb-9 flex items-center gap-3 px-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300 to-indigo-400">
-              <Activity className="h-5 w-5 text-white" />
-            </div>
-            <div className="text-2xl font-semibold">LariPulse</div>
+          <div className="mb-9 px-2">
+            <LariPulseLogo />
           </div>
           <nav className="space-y-2">
             {nav.map((item) => (

@@ -48,6 +48,17 @@ export const widgetCatalog = [
     description: "Summarizes observed Binance forced-order liquidations across longs and shorts for the selected interval."
   },
   {
+    widgetId: "derivatives_pressure",
+    title: "Derivatives Pressure",
+    group: "crypto",
+    planTier: "enterprise",
+    defaultEnabled: true,
+    priority: 35,
+    category: "derivatives",
+    iconKey: "activity",
+    description: "Interprets public Binance futures funding, open interest, long/short ratio, and basis context."
+  },
+  {
     widgetId: "momentum_exhaustion",
     title: "Momentum Exhaustion",
     group: "crypto",

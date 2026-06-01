@@ -12,6 +12,8 @@ LariPulse is a local-first market intelligence platform. It turns Binance and FR
 - Correlation engine: returns, rolling Pearson correlation, divergence and volatility-adjusted moves
 - Liquidations widget built from the Binance USD-M Futures forced-order stream
 - Situation Overview: a deterministic summary of bias, risk, drivers, conflicts and watch conditions
+- Derivatives Pressure widget from public Binance futures funding, open interest, long/short ratio and basis
+- Local alerts, an Opportunity Radar ranking, chart overlays with reasons and a local portfolio/watchlist
 - Typed API that never exposes raw source payloads
 - Optional in-process scheduler
 - Dashboard, Markets directory and Settings views
@@ -53,6 +55,11 @@ The initializer creates these tables:
 - `source_runs`
 - `widget_settings`
 - `liquidation_events`
+- `derivatives_metrics`
+- `situation_overviews`
+- `alert_rules`
+- `alert_events`
+- `portfolio_items`
 
 To reset the local database, stop the app and remove `data/laripulse.sqlite` plus any adjacent SQLite WAL/SHM files, then run `npm run db:init` again.
 
@@ -135,7 +142,84 @@ The Situation Overview turns the latest widget results into one deterministic ma
 curl "http://localhost:3000/api/overview/situation?symbol=BTCUSDT&timeframe=1h"
 ```
 
-It follows current widget visibility and never produces buy, sell, entry or exit instructions. See `docs/SITUATION_OVERVIEW.md`.
+It follows current widget visibility and never produces buy, sell, entry or exit instructions. Snapshots are stored in `situation_overviews`, so previous-state comparison survives restarts:
+
+```bash
+curl "http://localhost:3000/api/overview/situation/history?symbol=BTCUSDT&timeframe=1h"
+```
+
+See `docs/SITUATION_OVERVIEW.md`.
+
+## Derivatives Pressure
+
+The `derivatives_pressure` widget reads public Binance USD-M Futures market data: mark price and funding, funding history, open interest, the global long/short account ratio and perpetual basis. It never touches account data, API keys, positions or orders.
+
+Collect it manually:
+
+```bash
+curl -X POST http://localhost:3000/api/derivatives/run
+```
+
+Symbols locked for the current access level are rejected. Related settings: `BINANCE_FUTURES_BASE_URL` and `BINANCE_DERIVATIVES_HISTORY_LIMIT`.
+
+Normalized rows are stored in `derivatives_metrics` and passed to the widget through `WidgetContext.marketContext.derivatives`. See `docs/DERIVATIVES_CONTEXT.md`.
+
+## Alerts
+
+Local alerts turn Situation Overview changes into in-app events. Supported rule types:
+
+- `situation_bias_changed`
+- `risk_level_changed`
+- `watch_condition_appeared`
+- `widget_direction_changed`
+- `score_crossed_threshold`
+
+Open events are deduplicated by rule, symbol, timeframe and trigger until acknowledged. There are no email, push or external notification providers. Manage rules and events at `/alerts`, or through:
+
+```text
+GET    /api/alerts/rules
+POST   /api/alerts/rules
+PUT    /api/alerts/rules/:id
+DELETE /api/alerts/rules/:id
+GET    /api/alerts/events
+POST   /api/alerts/events/:id/ack
+POST   /api/alerts/evaluate
+```
+
+See `docs/ALERTS.md`.
+
+## Opportunity Radar
+
+`/radar` ranks accessible markets and timeframes by setup quality and by how much attention they deserve, using deterministic Situation Overview fields. It is a review aid, not a trade recommendation engine.
+
+```bash
+curl "http://localhost:3000/api/radar/opportunities"
+```
+
+See `docs/OPPORTUNITY_RADAR.md`.
+
+## Chart Overlays
+
+The dashboard price chart shows support/resistance zones, the largest observed liquidation and priced Situation Overview watch conditions, each with a reason. Overlays are descriptive levels, not entries, exits or targets.
+
+```bash
+curl "http://localhost:3000/api/market/overlays?symbol=BTCUSDT&timeframe=1h"
+```
+
+See `docs/CHART_OVERLAYS.md`.
+
+## Portfolio
+
+`/portfolio` keeps a local list of held or watched assets. For each item the service adds the latest stored price, market value, unrealized P/L when an average cost is set, concentration, the latest 1h Situation Overview, its strongest driver and active watch conditions. No exchange sync, balances or trading.
+
+```text
+GET    /api/portfolio
+POST   /api/portfolio
+PUT    /api/portfolio/:id
+DELETE /api/portfolio/:id
+```
+
+See `docs/PORTFOLIO.md`.
 
 ## Indicators
 
@@ -209,6 +293,8 @@ curl "http://localhost:3000/api/widgets/latest?symbol=BTCUSDT&timeframe=1h"
 curl "http://localhost:3000/api/widgets/history?symbol=BTCUSDT&widgetId=trend_strength&limit=10"
 curl "http://localhost:3000/api/widgets/cross-market?timeframe=1d"
 curl "http://localhost:3000/api/overview/situation?symbol=BTCUSDT&timeframe=1h"
+curl "http://localhost:3000/api/market/overlays?symbol=BTCUSDT&timeframe=1h"
+curl "http://localhost:3000/api/radar/opportunities"
 ```
 
 ```bash
@@ -357,7 +443,7 @@ LariPulse uses SQLite, Binance and FRED only. It does not require Redis, Postgre
 
 The UI is built with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, Framer Motion and lucide-react. The visual direction is a dark-mode-first glass interface: translucent panels, backdrop blur, soft borders, calm blue/gray tones and generous spacing.
 
-See `docs/architecture.md` for the design, `docs/widgets.md` for the widget inventory, `docs/SITUATION_OVERVIEW.md` and `docs/LIQUIDATIONS_WIDGET.md` for those features, and `CONTRIBUTING.md` for contribution rules.
+See `docs/architecture.md` for the design, `docs/widgets.md` for the widget inventory, the feature docs in `docs/` and `CONTRIBUTING.md` for contribution rules.
 
 ## Disclaimer
 

@@ -64,12 +64,36 @@ export interface WidgetLiquidityContext {
   liquidationSummaries?: Record<string, Record<string, WidgetLiquidationSummary | undefined>>;
 }
 
+export interface WidgetDerivativesContext {
+  symbol: string;
+  period: string;
+  source: string;
+  updatedAt: string | null;
+  fundingRate: number | null;
+  nextFundingTime: number | null;
+  markPrice: number | null;
+  indexPrice: number | null;
+  openInterest: number | null;
+  openInterestValue: number | null;
+  openInterestChangePct: number | null;
+  longShortRatio: number | null;
+  longAccount: number | null;
+  shortAccount: number | null;
+  basis: number | null;
+  basisRate: number | null;
+  annualizedBasisRate: number | null;
+  futuresPrice: number | null;
+  sampleCount: number;
+  storageError?: string;
+}
+
 export interface WidgetMarketContext {
   timeframeCandles?: Record<string, CandleRecord[]>;
   assetCandles?: Record<string, Record<string, CandleRecord[]>>;
   correlations?: CorrelationPairResult[];
   regimeHints?: MarketRegimeHint[];
   liquidity?: WidgetLiquidityContext;
+  derivatives?: Record<string, Record<string, WidgetDerivativesContext | undefined>>;
   latestCandleUpdatedAt?: string;
   metadata?: Record<string, unknown>;
 }

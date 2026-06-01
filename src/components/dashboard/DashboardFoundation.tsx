@@ -21,6 +21,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import type {
   ApiEnvelope,
   AuthSessionApi,
+  ChartOverlay,
+  ChartOverlaysResponse,
   CrossMarketWidgetsApi,
   MarketCandleApi,
   MarketOverviewApi,
@@ -484,16 +486,22 @@ function MiniSkeleton() {
 
 function PriceChart({
   candles,
+  overlays,
+  onSelectSourceWidget,
   range,
   symbol,
   timeframe
 }: {
   candles: MarketCandleApi[];
+  overlays: ChartOverlay[];
+  onSelectSourceWidget: (widgetId: string) => void;
   range: string;
   symbol: string;
   timeframe: string;
 }) {
-  const { linePoints, areaPoints, volumeBars, min, max, latest } = useMemo(() => {
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const selectedOverlay = overlays.find((overlay) => overlay.id === selectedOverlayId) ?? null;
+  const { linePoints, areaPoints, volumeBars, overlayShapes, min, max, latest } = useMemo(() => {
     const width = 880;
     const chartTop = 22;
     const chartHeight = 150;
@@ -503,16 +511,35 @@ function PriceChart({
     const highs = candles.map((candle) => candle.high);
     const lows = candles.map((candle) => candle.low);
     const volumes = candles.map((candle) => candle.volume);
-    const minClose = closes.length > 0 ? Math.min(...closes) : 0;
-    const maxClose = closes.length > 0 ? Math.max(...closes) : 1;
+    const overlayPrices = overlays.flatMap((overlay) => {
+      if (overlay.priceRange) {
+        return overlay.priceRange;
+      }
+
+      return overlay.price === undefined ? [] : [overlay.price];
+    });
     const periodHigh = highs.length > 0 ? Math.max(...highs) : null;
     const periodLow = lows.length > 0 ? Math.min(...lows) : null;
+    const minClose = Math.min(...(lows.length > 0 ? lows : closes), ...overlayPrices, 0);
+    const maxClose = Math.max(...(highs.length > 0 ? highs : closes), ...overlayPrices, 1);
     const maxVolume = volumes.length > 0 ? Math.max(...volumes) : 1;
     const priceRange = maxClose - minClose || 1;
     const step = candles.length > 1 ? width / (candles.length - 1) : width;
+    const firstTime = candles[0]?.openTime ?? null;
+    const lastTime = candles.at(-1)?.closeTime ?? null;
+    const yForPrice = (price: number) => chartTop + chartHeight - ((price - minClose) / priceRange) * chartHeight;
+    const xForTime = (timestamp?: string) => {
+      const parsed = timestamp ? Date.parse(timestamp) : Number.NaN;
+
+      if (!Number.isFinite(parsed) || firstTime === null || lastTime === null || lastTime <= firstTime) {
+        return width;
+      }
+
+      return Math.min(width, Math.max(0, ((parsed - firstTime) / (lastTime - firstTime)) * width));
+    };
     const points = candles.map((candle, index) => {
       const x = index * step;
-      const y = chartTop + chartHeight - ((candle.close - minClose) / priceRange) * chartHeight;
+      const y = yForPrice(candle.close);
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
 
@@ -526,11 +553,42 @@ function PriceChart({
         height: Math.max(2, (candle.volume / maxVolume) * volumeHeight),
         up: candle.close >= candle.open
       })),
+      overlayShapes: overlays.map((overlay) => {
+        const y = overlay.price !== undefined ? yForPrice(overlay.price) : null;
+        const rangeY = overlay.priceRange
+          ? overlay.priceRange.map(yForPrice).sort((left, right) => left - right) as [number, number]
+          : null;
+
+        return {
+          ...overlay,
+          x: xForTime(overlay.timestamp),
+          y,
+          rangeY
+        };
+      }),
       min: periodLow,
       max: periodHigh,
       latest: candles.at(-1)?.close ?? null
     };
-  }, [candles]);
+  }, [candles, overlays]);
+
+  useEffect(() => {
+    if (selectedOverlayId && !overlays.some((overlay) => overlay.id === selectedOverlayId)) {
+      setSelectedOverlayId(null);
+    }
+  }, [overlays, selectedOverlayId]);
+
+  function overlayColor(severity: ChartOverlay["severity"]) {
+    if (severity === "high") {
+      return "rgb(251 113 133)";
+    }
+
+    if (severity === "medium") {
+      return "rgb(251 191 36)";
+    }
+
+    return "rgb(125 211 252)";
+  }
 
   return (
     <GlassPanel className="mb-4 p-4">
@@ -561,6 +619,49 @@ function PriceChart({
               </defs>
               <polygon fill="url(#priceArea)" points={areaPoints} />
               <polyline fill="none" points={linePoints} stroke="rgb(103 232 249)" strokeLinecap="round" strokeWidth="3" />
+              {overlayShapes.map((overlay) => {
+                const color = overlayColor(overlay.severity);
+
+                if (overlay.kind === "price_zone" && overlay.rangeY) {
+                  const y = overlay.rangeY[0];
+                  const height = Math.max(2, overlay.rangeY[1] - overlay.rangeY[0]);
+
+                  return (
+                    <g className="cursor-pointer" key={overlay.id} onClick={() => setSelectedOverlayId(overlay.id)}>
+                      <rect
+                        fill={color}
+                        height={height}
+                        opacity={selectedOverlayId === overlay.id ? 0.28 : 0.16}
+                        rx="4"
+                        width="880"
+                        x="0"
+                        y={y}
+                      />
+                      <line stroke={color} strokeDasharray="7 7" strokeOpacity="0.72" strokeWidth="1.5" x1="0" x2="880" y1={y + height / 2} y2={y + height / 2} />
+                    </g>
+                  );
+                }
+
+                if (overlay.kind === "event_marker" && overlay.y !== null) {
+                  return (
+                    <g className="cursor-pointer" key={overlay.id} onClick={() => setSelectedOverlayId(overlay.id)}>
+                      <line stroke={color} strokeDasharray="4 7" strokeOpacity="0.68" strokeWidth="1.5" x1={overlay.x} x2={overlay.x} y1="12" y2="184" />
+                      <circle cx={overlay.x} cy={overlay.y} fill="rgb(15 23 42)" r="7" stroke={color} strokeWidth="3" />
+                    </g>
+                  );
+                }
+
+                if (overlay.y !== null) {
+                  return (
+                    <g className="cursor-pointer" key={overlay.id} onClick={() => setSelectedOverlayId(overlay.id)}>
+                      <line stroke={color} strokeDasharray="8 7" strokeOpacity="0.82" strokeWidth={selectedOverlayId === overlay.id ? "2.5" : "1.7"} x1="0" x2="880" y1={overlay.y} y2={overlay.y} />
+                      <circle cx="858" cy={overlay.y} fill="rgb(15 23 42)" r="5" stroke={color} strokeWidth="2" />
+                    </g>
+                  );
+                }
+
+                return null;
+              })}
               {volumeBars.map((bar, index) => (
                 <rect
                   fill={bar.up ? "rgba(52, 211, 153, 0.48)" : "rgba(251, 113, 133, 0.44)"}
@@ -577,6 +678,47 @@ function PriceChart({
               {formatNumber(latest)}
             </div>
             <div className="absolute inset-x-0 top-20 border-t border-dashed border-cyan-200/45" />
+            {overlays.length > 0 ? (
+              <div className="absolute left-3 top-3 flex max-w-[calc(100%-24px)] gap-2 overflow-x-auto pr-2">
+                {overlays.slice(0, 5).map((overlay) => (
+                  <button
+                    className={cn(
+                      "shrink-0 rounded-full border px-3 py-1 text-xs font-semibold text-white/78 backdrop-blur-xl transition hover:bg-white/12",
+                      selectedOverlayId === overlay.id ? "border-cyan-200/70 bg-cyan-300/18" : "border-white/12 bg-black/24"
+                    )}
+                    key={overlay.id}
+                    onClick={() => setSelectedOverlayId((current) => current === overlay.id ? null : overlay.id)}
+                    type="button"
+                  >
+                    {overlay.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {selectedOverlay ? (
+              <div className="absolute bottom-3 left-3 right-3 rounded-2xl border border-white/15 bg-slate-950/78 p-3 text-sm text-white shadow-2xl backdrop-blur-2xl md:left-auto md:w-[360px]">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <div className="font-semibold">{selectedOverlay.label}</div>
+                  <button className="text-white/55 transition hover:text-white" onClick={() => setSelectedOverlayId(null)} type="button">
+                    Close
+                  </button>
+                </div>
+                <div className="text-xs leading-5 text-white/68">
+                  <span className="font-semibold text-white/80">{selectedOverlay.sourceWidget.replaceAll("_", " ")}</span>
+                  {selectedOverlay.price !== undefined ? ` · ${formatNumber(selectedOverlay.price)}` : ""}
+                </div>
+                <div className="mt-1 leading-5 text-white/82">{selectedOverlay.reason}</div>
+                {selectedOverlay.sourceWidget !== "situation_overview" ? (
+                  <button
+                    className="mt-3 rounded-xl border border-cyan-200/30 bg-cyan-300/12 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/18"
+                    onClick={() => onSelectSourceWidget(selectedOverlay.sourceWidget)}
+                    type="button"
+                  >
+                    Open source widget
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -933,6 +1075,7 @@ export function DashboardFoundation() {
   const [timeframe, setTimeframe] = useState("1h");
   const [chartRange, setChartRange] = useState("1d");
   const [overview, setOverview] = useState<MarketOverviewApi | null>(null);
+  const [chartOverlays, setChartOverlays] = useState<ChartOverlay[]>([]);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatusApi | null>(null);
   const [widgets, setWidgets] = useState<WidgetResultApi[]>([]);
   const [crossMarket, setCrossMarket] = useState<CrossMarketWidgetsApi | null>(null);
@@ -990,9 +1133,13 @@ export function DashboardFoundation() {
           return;
         }
 
-        const [marketData, widgetData, runtimeData, crossMarketData] = await Promise.all([
+        const [marketData, overlayData, widgetData, runtimeData, crossMarketData] = await Promise.all([
           fetchApi<MarketOverviewApi>(
             `/api/market/overview?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&interval=${encodeURIComponent(timeframe)}&range=${encodeURIComponent(chartRange)}&limit=120`,
+            controller.signal
+          ),
+          fetchApi<ChartOverlaysResponse>(
+            `/api/market/overlays?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`,
             controller.signal
           ),
           fetchApi<{ results: WidgetResultApi[] }>(
@@ -1012,6 +1159,7 @@ export function DashboardFoundation() {
         ]);
 
         setOverview(marketData);
+        setChartOverlays(overlayData.overlays);
         setWidgets(widgetData.results);
         setRuntimeStatus(runtimeData);
         setCrossMarket(crossMarketData);
@@ -1247,7 +1395,18 @@ export function DashboardFoundation() {
             <MetricPill label="Updated" value={formatTime(metrics?.updatedAt)} />
           </div>
 
-          <PriceChart candles={overview?.candles ?? []} range={chartRange} symbol={symbol} timeframe={timeframe} />
+          <PriceChart
+            candles={overview?.candles ?? []}
+            onSelectSourceWidget={(widgetId) => {
+              if (widgets.some((result) => result.widgetId === widgetId)) {
+                setSelectedWidgetId(widgetId);
+              }
+            }}
+            overlays={chartOverlays}
+            range={chartRange}
+            symbol={symbol}
+            timeframe={timeframe}
+          />
 
           {authSession?.isAdmin ? (
             <CrossMarketOverview

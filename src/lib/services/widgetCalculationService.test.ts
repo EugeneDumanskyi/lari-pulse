@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { runMigrations } from "@/lib/db/migrations";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
 import { insertLiquidationEvents } from "@/lib/db/repositories/liquidityRepository";
+import { upsertDerivativesMetrics } from "@/lib/db/repositories/derivativesRepository";
 import { getLatestWidgetResults } from "@/lib/db/repositories/widgetResultsRepository";
 import type { NewCandle } from "@/lib/db/types";
 import { runWidgetCalculations } from "./widgetCalculationService";
@@ -57,6 +58,48 @@ describe("widget calculation service", () => {
           metadataJson: null
         }
       ]);
+      upsertDerivativesMetrics(db, [
+        {
+          symbol: "BTCUSDT",
+          period: "1h",
+          source: "binance_futures",
+          metricTime: Date.parse("2026-05-22T11:00:00.000Z"),
+          fundingRate: 0.0002,
+          nextFundingTime: Date.parse("2026-05-22T16:00:00.000Z"),
+          markPrice: 104050,
+          indexPrice: 104000,
+          openInterest: 10000,
+          openInterestValue: 1040000000,
+          longShortRatio: 1.2,
+          longAccount: 0.55,
+          shortAccount: 0.45,
+          basis: 50,
+          basisRate: 0.00048,
+          annualizedBasisRate: 0.17,
+          futuresPrice: 104050,
+          metadataJson: null
+        },
+        {
+          symbol: "BTCUSDT",
+          period: "1h",
+          source: "binance_futures",
+          metricTime: Date.parse("2026-05-22T11:55:00.000Z"),
+          fundingRate: null,
+          nextFundingTime: null,
+          markPrice: null,
+          indexPrice: null,
+          openInterest: 10800,
+          openInterestValue: 1120000000,
+          longShortRatio: null,
+          longAccount: null,
+          shortAccount: null,
+          basis: null,
+          basisRate: null,
+          annualizedBasisRate: null,
+          futuresPrice: null,
+          metadataJson: null
+        }
+      ]);
 
       const result = await runWidgetCalculations({
         db,
@@ -66,8 +109,8 @@ describe("widget calculation service", () => {
       });
 
       assert.equal(result.status, "ok");
-      assert.equal(result.widgetsRun, 6);
-      assert.equal(result.widgetsSaved, 6);
+      assert.equal(result.widgetsRun, 7);
+      assert.equal(result.widgetsSaved, 7);
       assert.deepEqual(result.errors, []);
 
       const latest = getLatestWidgetResults(db, {
@@ -75,8 +118,9 @@ describe("widget calculation service", () => {
         timeframe: "1h"
       });
 
-      assert.equal(latest.length, 6);
+      assert.equal(latest.length, 7);
       assert.ok(latest.some((widget) => widget.widgetId === "liquidations"));
+      assert.ok(latest.some((widget) => widget.widgetId === "derivatives_pressure"));
     } finally {
       db.close();
     }

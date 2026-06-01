@@ -147,6 +147,7 @@ test("catalog includes liquidity widgets as Enterprise crypto widgets in priorit
   assert.deepEqual(cryptoIds, [
     "trend_strength",
     "liquidations",
+    "derivatives_pressure",
     "multi_timeframe_alignment",
     "momentum_exhaustion",
     "support_resistance_pressure",

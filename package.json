@@ -17,7 +17,7 @@
     "test:correlations": "tsx --test src/lib/correlations/*.test.ts",
     "test:collectors": "tsx --test src/lib/collectors/*.test.ts",
     "test:indicators": "tsx --test src/lib/indicators/*.test.ts",
-    "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/phase1/*.test.ts src/lib/widgets/phase2/*.test.ts",
+    "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/phase1/*.test.ts src/lib/widgets/phase2/*.test.ts src/lib/widgets/derivatives/*.test.ts",
     "test:services": "tsx --test src/lib/services/*.test.ts src/lib/services/**/*.test.ts",
     "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts"
   },

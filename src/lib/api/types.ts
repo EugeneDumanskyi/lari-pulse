@@ -238,5 +238,29 @@ export type {
   SituationWatchCondition,
   SituationDataWarning,
   SituationChange,
-  SituationSourceWidget
+  SituationSourceWidget,
+  SituationOverviewHistoryItem
 } from "@/lib/services/situationOverview/situationOverview.types";
+
+export type {
+  AlertRuleApi,
+  AlertEventApi,
+  AlertRuleInput
+} from "@/lib/services/alertService";
+
+export type {
+  OpportunityRadarItem,
+  OpportunityRadarResponse
+} from "@/lib/services/opportunityRadarService";
+
+export type {
+  ChartOverlay,
+  ChartOverlaysResponse
+} from "@/lib/services/chartOverlayService";
+
+export type {
+  PortfolioContextApi,
+  PortfolioItemApi,
+  PortfolioItemInput,
+  PortfolioSituationApi
+} from "@/lib/services/portfolioContextService";
