@@ -31,6 +31,9 @@ export interface AuthSessionApi {
   isAdmin: boolean;
   plan: AccessPlan;
   username: string | null;
+  userId: number | null;
+  email: string | null;
+  role: "user" | "admin" | "anonymous";
   accessibleSymbols: string[];
   lockedSymbols: string[];
   visibleWidgetIds: string[];

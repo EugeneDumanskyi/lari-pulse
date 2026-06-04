@@ -97,6 +97,39 @@ export interface NewWidgetSetting {
   isEnabled: boolean;
 }
 
+export type UserRole = "user" | "admin";
+export type UserStatus = "active" | "disabled";
+
+export interface UserRecord {
+  id: number;
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+  status: UserStatus;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewUser {
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+  status: UserStatus;
+  emailVerifiedAt?: string | null;
+}
+
+export interface SessionRecord {
+  id: number;
+  userId: number;
+  tokenHash: string;
+  expiresAt: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SituationOverviewRecord {
   id: number;
   symbol: string;

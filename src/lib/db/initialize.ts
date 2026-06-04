@@ -1,6 +1,7 @@
 import { appConfig } from "@/lib/config/appConfig";
 import { closeDatabase, getDatabase } from "./client";
 import { runMigrations } from "./migrations";
+import { seedAdminUser } from "./repositories/accountRepository";
 import { listActiveSymbols, seedSymbols } from "./repositories/symbolsRepository";
 
 export function initializeDatabase() {
@@ -8,6 +9,7 @@ export function initializeDatabase() {
 
   runMigrations(db);
   seedSymbols(db, appConfig.symbols);
+  seedAdminUser(db);
 
   return {
     databasePath: appConfig.databasePath,

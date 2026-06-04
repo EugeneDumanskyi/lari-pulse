@@ -185,6 +185,29 @@ CREATE TABLE IF NOT EXISTS portfolio_items (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'admin')) DEFAULT 'user',
+  status TEXT NOT NULL CHECK (status IN ('active', 'disabled')) DEFAULT 'active',
+  email_verified_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  user_agent TEXT,
+  ip_address TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe_open_time
   ON candles(symbol, timeframe, open_time);
 
@@ -232,4 +255,13 @@ CREATE INDEX IF NOT EXISTS idx_alert_events_rule_trigger_ack
 
 CREATE INDEX IF NOT EXISTS idx_portfolio_items_symbol_risk
   ON portfolio_items(symbol, include_in_risk);
+
+CREATE INDEX IF NOT EXISTS idx_users_email_status
+  ON users(email, status);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_expires
+  ON sessions(user_id, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_token_expires
+  ON sessions(token_hash, expires_at);
 `;

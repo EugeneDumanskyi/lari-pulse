@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Eye, Lock, LogIn, LogOut, Save, Settings } from "lucide-react";
+import { Check, Eye, Lock, LogIn, LogOut, Save, Settings, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import type {
   ApiEnvelope,
@@ -36,8 +36,9 @@ export function SettingsFoundation() {
   const [authSession, setAuthSession] = useState<AuthSessionApi | null>(null);
   const [settingsState, setSettingsState] = useState<WidgetSettingsApi | null>(null);
   const [enabledWidgetIds, setEnabledWidgetIds] = useState<string[]>([]);
-  const [username, setUsername] = useState("admin");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,31 +83,40 @@ export function SettingsFoundation() {
     return () => controller.abort();
   }, []);
 
-  async function login() {
+  async function submitAuth() {
+    const isSignup = authMode === "signup";
+    const fallbackMessage = isSignup ? "Unable to create account" : "Unable to sign in";
+
     setIsSaving(true);
     setPanelError(null);
     setMessage(null);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(isSignup ? "/api/auth/signup" : "/api/auth/login", {
         method: "POST",
         headers: {
           "content-type": "application/json"
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ email, password })
       });
       const body = (await response.json()) as ApiEnvelope<AuthSessionApi> | { status: "error"; message: string };
 
       if (!response.ok || body.status === "error") {
-        throw new Error("message" in body ? body.message : "Unable to sign in");
+        throw new Error("message" in body ? body.message : fallbackMessage);
       }
 
       setAuthSession(body.data);
       setPassword("");
       await loadSettings();
-      setMessage("Enterprise access unlocked.");
-    } catch (loginError) {
-      setPanelError(loginError instanceof Error ? loginError.message : "Unable to sign in");
+      setMessage(
+        body.data.isAdmin
+          ? "Signed in as admin. All markets and widgets are available."
+          : isSignup
+            ? "Account created. You are signed in."
+            : "Signed in."
+      );
+    } catch (authError) {
+      setPanelError(authError instanceof Error ? authError.message : fallbackMessage);
     } finally {
       setIsSaving(false);
     }
@@ -171,6 +181,7 @@ export function SettingsFoundation() {
   }
 
   const canEdit = settingsState?.canEdit === true;
+  const isSignedIn = Boolean(authSession && authSession.role !== "anonymous");
   const cryptoWidgets = groupCatalog(settingsState?.catalog ?? [], "crypto");
   const crossMarketWidgets = groupCatalog(settingsState?.catalog ?? [], "cross_market");
 
@@ -223,14 +234,22 @@ export function SettingsFoundation() {
                   </div>
                 </div>
                 <StatusBadge tone={authSession?.isAdmin ? "green" : "amber"}>
-                  {authSession?.isAdmin ? "Admin" : "Locked"}
+                  {authSession?.isAdmin ? "Admin" : isSignedIn ? "Member" : "Guest"}
                 </StatusBadge>
               </div>
 
-              {authSession?.isAdmin ? (
+              {isSignedIn ? (
                 <div className="space-y-4">
+                  {authSession?.email ? (
+                    <div className="rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/42">Signed in as</div>
+                      <div className="mt-1 truncate text-sm font-semibold text-white">{authSession.email}</div>
+                    </div>
+                  ) : null}
                   <p className="text-sm leading-6 text-white/62">
-                    All configured markets and implemented widgets are available. Widget visibility controls what the dashboard renders.
+                    {authSession?.isAdmin
+                      ? "All configured markets and implemented widgets are available. Widget visibility controls what the dashboard renders."
+                      : "Your account uses Basic access: BTC and the core widgets."}
                   </p>
                   <button
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/16 bg-white/10 text-sm font-semibold text-white/84 transition hover:bg-white/16 disabled:opacity-55"
@@ -248,11 +267,14 @@ export function SettingsFoundation() {
                     Basic access keeps BTC available and limits the dashboard to the two core widgets.
                   </p>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-white/54">Username</span>
+                    <span className="mb-1 block text-xs font-semibold text-white/54">Email</span>
                     <input
+                      autoComplete="email"
                       className="h-11 w-full rounded-2xl border border-white/18 bg-white/90 px-4 text-sm font-medium text-slate-950 caret-sky-600 outline-none transition placeholder:text-slate-500 focus:border-sky-200/50 focus:bg-white"
-                      onChange={(event) => setUsername(event.target.value)}
-                      value={username}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      type="email"
+                      value={email}
                     />
                   </label>
                   <label className="block">
@@ -262,7 +284,7 @@ export function SettingsFoundation() {
                       onChange={(event) => setPassword(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
-                          void login();
+                          void submitAuth();
                         }
                       }}
                       type="password"
@@ -272,11 +294,18 @@ export function SettingsFoundation() {
                   <button
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-sky-200/24 bg-sky-200/16 text-sm font-semibold text-sky-50 transition hover:bg-sky-200/22 disabled:opacity-55"
                     disabled={isSaving}
-                    onClick={() => void login()}
+                    onClick={() => void submitAuth()}
                     type="button"
                   >
-                    <LogIn className="h-4 w-4" />
-                    Sign in
+                    {authMode === "signup" ? <UserPlus className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+                    {authMode === "signup" ? "Create account" : "Sign in"}
+                  </button>
+                  <button
+                    className="w-full text-center text-xs font-semibold text-white/56 transition hover:text-white/80"
+                    onClick={() => setAuthMode((current) => (current === "login" ? "signup" : "login"))}
+                    type="button"
+                  >
+                    {authMode === "signup" ? "Already have an account? Sign in" : "New here? Create an account"}
                   </button>
                 </div>
               )}

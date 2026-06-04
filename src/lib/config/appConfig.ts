@@ -17,5 +17,8 @@ export const appConfig = {
   liquidityRuntimeEnabled: process.env.LIQUIDITY_RUNTIME_ENABLED === "true",
   liquidationsRetentionHours: Number(process.env.LIQUIDATIONS_RETENTION_HOURS ?? 90 * 24),
   binanceLiquidationStreamUrl:
-    process.env.BINANCE_LIQUIDATION_STREAM_URL ?? "wss://fstream.binance.com/ws/!forceOrder@arr"
+    process.env.BINANCE_LIQUIDATION_STREAM_URL ?? "wss://fstream.binance.com/ws/!forceOrder@arr",
+  adminEmail: process.env.LARIPULSE_ADMIN_EMAIL ?? "admin@example.com",
+  adminPassword: process.env.LARIPULSE_ADMIN_PASSWORD ?? "123",
+  sessionMaxAgeSeconds: Number(process.env.LARIPULSE_SESSION_MAX_AGE_SECONDS ?? 60 * 60 * 24 * 30)
 };

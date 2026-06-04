@@ -239,6 +239,8 @@ situation_overviews   persisted Situation Overview snapshots
 alert_rules           local alert rules
 alert_events          alert events, deduplicated while open
 portfolio_items       locally tracked holdings and watchlist entries
+users                 accounts: email, scrypt password hash, role (user | admin), status
+sessions              session token hashes with expiry, user agent and IP
 ```
 
 ## Widget Contract
@@ -487,7 +489,9 @@ Alert rules are evaluated from Situation Overview state in the service layer, ne
 
 ## Access and Visibility
 
-A local access model limits what anonymous visitors see: BTC and the core widgets. The local admin unlocks all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
+Accounts live in `users` and `sessions`. Passwords use scrypt (`src/lib/auth/password.ts`); session tokens are random, sent as an HTTP-only cookie and stored only as SHA-256 hashes. `src/lib/auth/access.ts` resolves the cookie into an `AuthSession`. The admin user is seeded from `LARIPULSE_ADMIN_EMAIL` and `LARIPULSE_ADMIN_PASSWORD`.
+
+Anonymous visitors and regular users see BTC and the core widgets. Admins see all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
 
 ## Confidence
 
@@ -528,6 +532,7 @@ GET  /api/markets
 GET  /api/markets/overview?symbol=BTCUSDT
 GET  /api/settings/widgets
 PUT  /api/settings/widgets
+POST /api/auth/signup
 POST /api/auth/login
 POST /api/auth/logout
 GET  /api/auth/session

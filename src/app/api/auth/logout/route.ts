@@ -1,15 +1,17 @@
-import { NextResponse } from "next/server";
-import { authSessionApi, clearAdminCookie, getSessionFromToken } from "@/lib/auth/access";
+import { NextRequest, NextResponse } from "next/server";
+import { authSessionApi, AUTH_COOKIE_NAME, clearSessionCookie, clearSessionForToken, getSessionFromToken } from "@/lib/auth/access";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  clearSessionForToken(request.cookies.get(AUTH_COOKIE_NAME)?.value);
+
   const response = NextResponse.json({
     status: "ok",
     data: authSessionApi(getSessionFromToken(undefined))
   });
 
-  clearAdminCookie(response);
+  clearSessionCookie(response);
 
   return response;
 }

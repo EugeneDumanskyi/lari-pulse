@@ -22,6 +22,16 @@ export function apiErrorJson(error: unknown, fallbackMessage = "Request failed")
     );
   }
 
+  if (error instanceof Error && "statusCode" in error && typeof error.statusCode === "number") {
+    return NextResponse.json(
+      {
+        status: "error",
+        message: error.message
+      },
+      { status: error.statusCode }
+    );
+  }
+
   return NextResponse.json(
     {
       status: "error",

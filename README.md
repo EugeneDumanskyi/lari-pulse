@@ -16,6 +16,7 @@ LariPulse is a local-first market intelligence platform. It turns Binance and FR
 - Local alerts, an Opportunity Radar ranking, chart overlays with reasons and a local portfolio/watchlist
 - Typed API that never exposes raw source payloads
 - Optional in-process scheduler
+- User accounts with hashed passwords and database-backed sessions
 - Dashboard, Markets directory and Settings views
 
 ## Setup
@@ -60,6 +61,8 @@ The initializer creates these tables:
 - `alert_rules`
 - `alert_events`
 - `portfolio_items`
+- `users`
+- `sessions`
 
 To reset the local database, stop the app and remove `data/laripulse.sqlite` plus any adjacent SQLite WAL/SHM files, then run `npm run db:init` again.
 
@@ -311,31 +314,40 @@ The dashboard renders real API data from SQLite. Use the manual collection endpo
 
 Widget cards reserve the same height for both summary and detail faces, so opening details does not resize the grid. Detail rows are formatted into readable labels and compact summaries instead of raw JSON.
 
-## Local Access Mode
+## Accounts and Access
 
-LariPulse ships with a simple local access model. Anonymous visitors get a limited view: BTC is available, other markets are visible but locked, and only the core widgets are shown. Signing in as the local admin unlocks all configured markets and widgets.
+LariPulse stores user accounts in SQLite. Passwords are hashed with scrypt, and sessions are random tokens kept in an HTTP-only cookie; only a SHA-256 hash of each token is stored.
 
-Local admin credentials default to:
+Access levels:
+
+- **Anonymous and regular users:** BTC and the core widgets. Other markets are visible but locked.
+- **Admin:** all configured markets and widgets, plus widget visibility settings.
+
+The admin account is seeded on startup from the environment:
 
 ```text
-username: admin
-password: 123
+LARIPULSE_ADMIN_EMAIL=admin@example.com
+LARIPULSE_ADMIN_PASSWORD=replace-this-before-production
+LARIPULSE_SESSION_MAX_AGE_SECONDS=2592000
 ```
 
-Override them with `LARIPULSE_ADMIN_USERNAME`, `LARIPULSE_ADMIN_PASSWORD` and `LARIPULSE_AUTH_SECRET`. This is local-development auth, not production account security.
+Set a real password before exposing the app to a network.
 
 ```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "content-type: application/json" \
+  -d '{"email":"you@example.com","password":"a-long-password"}'
+
 curl -X POST http://localhost:3000/api/auth/login \
   -H "content-type: application/json" \
-  -d '{"username":"admin","password":"123"}'
+  -d '{"email":"admin@example.com","password":"replace-this-before-production"}' \
+  -c cookies.txt
 
-curl http://localhost:3000/api/auth/session
-curl -X POST http://localhost:3000/api/auth/logout
+curl -b cookies.txt http://localhost:3000/api/auth/session
+curl -b cookies.txt -X POST http://localhost:3000/api/auth/logout
 ```
 
-The session is stored in an HTTP-only cookie.
-
-Widget visibility is stored in SQLite. Dashboard APIs apply it before returning widget results, sorted by the central widget catalog priority. The Settings view (`/settings`) handles sign-in, sign-out and widget visibility.
+Widget visibility is stored in SQLite. Dashboard APIs apply it before returning widget results, sorted by the central widget catalog priority. The Settings view (`/settings`) handles sign-up, sign-in, sign-out and widget visibility.
 
 ```bash
 curl http://localhost:3000/api/settings/widgets
