@@ -10,16 +10,18 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:init": "tsx src/lib/db/initialize.ts",
     "collect:fred": "tsx src/lib/services/fredCollectionService.ts",
+    "user:reset-password": "tsx src/lib/services/resetPasswordCli.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
-    "test:db": "tsx --test src/lib/db/**/*.test.ts",
+    "test:db": "tsx --test src/lib/db/*.test.ts src/lib/db/**/*.test.ts",
     "test:correlations": "tsx --test src/lib/correlations/*.test.ts",
     "test:collectors": "tsx --test src/lib/collectors/*.test.ts",
     "test:indicators": "tsx --test src/lib/indicators/*.test.ts",
-    "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/phase1/*.test.ts src/lib/widgets/phase2/*.test.ts src/lib/widgets/derivatives/*.test.ts",
+    "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/crypto/*.test.ts src/lib/widgets/crossMarket/*.test.ts src/lib/widgets/derivatives/*.test.ts",
     "test:services": "tsx --test src/lib/services/*.test.ts src/lib/services/**/*.test.ts",
-    "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts"
+    "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts",
+    "test:auth": "tsx --test src/lib/auth/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",

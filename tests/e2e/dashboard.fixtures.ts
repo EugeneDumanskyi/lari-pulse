@@ -28,12 +28,12 @@ function candles(count = 64) {
   });
 }
 
-const basicSession = {
-  isAdmin: false,
-  plan: "basic",
-  username: null,
-  accessibleSymbols: ["BTCUSDT"],
-  lockedSymbols: ["ETHUSDT", "SOLUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"],
+const session = {
+  userId: 1,
+  email: "e2e-admin@example.com",
+  role: "admin",
+  isAuthenticated: true,
+  accessibleSymbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"],
   visibleWidgetIds: ["trend_strength", "momentum_exhaustion"]
 };
 
@@ -47,8 +47,7 @@ const symbols = [
     displayName: "Bitcoin",
     providerSymbol: "BTCUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: false
+    isActive: true
   },
   {
     symbol: "ETHUSDT",
@@ -59,8 +58,7 @@ const symbols = [
     displayName: "Ethereum",
     providerSymbol: "ETHUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: true
+    isActive: true
   },
   {
     symbol: "SOLUSDT",
@@ -71,8 +69,7 @@ const symbols = [
     displayName: "Solana",
     providerSymbol: "SOLUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: true
+    isActive: true
   }
 ];
 
@@ -126,10 +123,10 @@ const runtimeStatus = {
     intervalSeconds: 60,
     lastRunAt: null,
     lastStatus: null,
-    phase2Enabled: false,
-    phase2IntervalSeconds: 86_400,
-    lastPhase2RunAt: null,
-    lastPhase2Status: null
+    macroEnabled: false,
+    macroIntervalSeconds: 86_400,
+    lastMacroRunAt: null,
+    lastMacroStatus: null
   },
   liquidity: {
     enabled: false,
@@ -168,6 +165,15 @@ const runtimeStatus = {
 const marketOverview = {
   symbol: "BTCUSDT",
   timeframe: "1h",
+  interval: "1h",
+  range: "7d",
+  source: {
+    provider: "sqlite",
+    interval: "1h",
+    range: "7d",
+    isFallback: false,
+    warning: null
+  },
   candles: candles(),
   metrics: {
     latestPrice: 69628,
@@ -199,7 +205,6 @@ const markets = [
     candleCount: 64,
     updatedAt: now.toISOString(),
     isStale: false,
-    isLocked: false,
     sourceNote: "Binance spot candles stored locally."
   },
   {
@@ -216,8 +221,7 @@ const markets = [
     candleCount: 0,
     updatedAt: null,
     isStale: true,
-    isLocked: true,
-    sourceNote: "Locked in Basic access."
+    sourceNote: "No local candles yet."
   },
   {
     symbol: "NASDAQ100",
@@ -233,8 +237,7 @@ const markets = [
     candleCount: 0,
     updatedAt: null,
     isStale: true,
-    isLocked: true,
-    sourceNote: "Locked in Basic access."
+    sourceNote: "No local candles yet."
   }
 ];
 
@@ -243,42 +246,33 @@ const settingsCatalog = [
     widgetId: "trend_strength",
     title: "Trend Strength",
     group: "crypto",
-    planTier: "basic",
     defaultEnabled: true,
     priority: 10,
     category: "trend",
     iconKey: "line-chart",
     description: "Measures whether the selected market is trending or mixed.",
-    isAvailable: true,
-    isLocked: false,
     isEnabled: true
   },
   {
     widgetId: "momentum_exhaustion",
     title: "Momentum Exhaustion",
     group: "crypto",
-    planTier: "basic",
     defaultEnabled: true,
     priority: 20,
     category: "momentum",
     iconKey: "zap",
     description: "Checks whether current momentum is healthy or stretched.",
-    isAvailable: true,
-    isLocked: false,
     isEnabled: true
   },
   {
     widgetId: "macro_risk_pulse",
     title: "Macro Risk Pulse",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 110,
     category: "macro",
     iconKey: "globe",
     description: "Combines broad market inputs into a risk pulse.",
-    isAvailable: true,
-    isLocked: true,
     isEnabled: false
   }
 ];
@@ -296,11 +290,11 @@ export async function mockDashboardApis(page: Page) {
     const path = url.pathname;
 
     if (path === "/api/symbols") {
-      return fulfillJson(route, ok({ symbols, count: symbols.length, session: basicSession }));
+      return fulfillJson(route, ok({ symbols, count: symbols.length, session }));
     }
 
     if (path === "/api/auth/session") {
-      return fulfillJson(route, ok(basicSession));
+      return fulfillJson(route, ok(session));
     }
 
     if (path === "/api/market/overview" || path === "/api/markets/overview") {
@@ -316,13 +310,12 @@ export async function mockDashboardApis(page: Page) {
     }
 
     if (path === "/api/markets") {
-      return fulfillJson(route, ok({ markets, count: markets.length, session: basicSession, updatedAt: now.toISOString() }));
+      return fulfillJson(route, ok({ markets, count: markets.length, session, updatedAt: now.toISOString() }));
     }
 
     if (path === "/api/settings/widgets") {
       return fulfillJson(route, ok({
-        plan: "basic",
-        canEdit: false,
+        canEdit: true,
         enabledWidgetIds: ["trend_strength", "momentum_exhaustion"],
         catalog: settingsCatalog,
         updatedAt: now.toISOString()

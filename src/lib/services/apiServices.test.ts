@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { defaultSymbols, phase2Symbols } from "@/lib/config/symbols";
+import { defaultSymbols, crossMarketSymbols } from "@/lib/config/symbols";
 import { runMigrations } from "@/lib/db/migrations";
 import { insertSourceRun } from "@/lib/db/repositories/sourceRunsRepository";
 import { insertWidgetResult } from "@/lib/db/repositories/widgetResultsRepository";
 import { listActiveSymbols, seedSymbols } from "@/lib/db/repositories/symbolsRepository";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
-import { getSessionFromToken, createAdminSession } from "@/lib/auth/access";
+import { AccessError } from "@/lib/auth/access";
+import { anonymousTestSession, createTestSession } from "@/lib/auth/testing";
 import { ApiInputError, validateOptionalRange, validateSymbol, validateSymbolAccess, validateWidgetId } from "./apiValidation";
 import { getDashboardMarketOverview, getLiveMarketOverview, getMarketOverview, getStoredDashboardMarketOverview } from "./marketDataService";
 import { getRuntimeStatus } from "./runtimeStatusService";
@@ -18,6 +19,7 @@ import { getEffectiveVisibleWidgetIds, updateWidgetSettings } from "./widgetSett
 
 function createMemoryDatabase() {
   const db = new Database(":memory:");
+  db.pragma("foreign_keys = ON");
   runMigrations(db);
   seedSymbols(db, defaultSymbols);
   return db;
@@ -34,25 +36,18 @@ describe("API service layer", () => {
       "baseAsset",
       "displayName",
       "isActive",
-      "isLocked",
       "priceUnit",
       "providerSymbol",
       "quoteAsset",
       "source",
       "symbol"
     ]);
-    assert.equal(symbols.find((symbol) => symbol.symbol === "BTCUSDT")?.isLocked, false);
-    assert.equal(symbols.find((symbol) => symbol.symbol === "ETHUSDT")?.isLocked, true);
-
-    const adminSymbols = listSymbols(db, createAdminSession());
-
-    assert.equal(adminSymbols.every((symbol) => symbol.isLocked === false), true);
   });
 
-  it("lists the broader market directory with locked state and source metadata", () => {
+  it("lists the broader market directory with source metadata for signed-in users", () => {
     const db = createMemoryDatabase();
 
-    seedSymbols(db, phase2Symbols);
+    seedSymbols(db, crossMarketSymbols);
     upsertCandles(db, [
       {
         symbol: "US10Y",
@@ -68,15 +63,13 @@ describe("API service layer", () => {
       }
     ]);
 
-    const basicMarkets = getMarkets(getSessionFromToken(undefined), db);
-    const adminMarkets = getMarkets(createAdminSession(), db);
+    const markets = getMarkets(createTestSession(db, "viewer"), db);
 
-    assert.equal(basicMarkets.count, 10);
-    assert.equal(basicMarkets.markets.find((market) => market.symbol === "BTCUSDT")?.isLocked, false);
-    assert.equal(basicMarkets.markets.find((market) => market.symbol === "US10Y")?.isLocked, true);
-    assert.equal(adminMarkets.markets.find((market) => market.symbol === "US10Y")?.isLocked, false);
-    assert.equal(adminMarkets.markets.find((market) => market.symbol === "US10Y")?.latestValue, 4.1);
-    assert.equal(adminMarkets.markets.find((market) => market.symbol === "US10Y")?.source, "fred");
+    assert.equal(markets.count, 10);
+    assert.equal(markets.session.role, "viewer");
+    assert.equal(markets.markets.find((market) => market.symbol === "US10Y")?.latestValue, 4.1);
+    assert.equal(markets.markets.find((market) => market.symbol === "US10Y")?.source, "fred");
+    assert.throws(() => getMarkets(anonymousTestSession(db), db), AccessError);
   });
 
   it("seeds cross-market symbol metadata without changing the candle schema", () => {
@@ -92,7 +85,7 @@ describe("API service layer", () => {
         displayName: "CBOE Volatility Index",
         providerSymbol: "^VIX",
         priceUnit: "index_points",
-        metadata: { phase: "phase2" },
+        metadata: { group: "cross_market" },
         isActive: true
       }
     ]);
@@ -103,10 +96,10 @@ describe("API service layer", () => {
     assert.equal(vix?.source, "stooq");
     assert.equal(vix?.providerSymbol, "^VIX");
     assert.equal(vix?.priceUnit, "index_points");
-    assert.deepEqual(JSON.parse(vix?.metadataJson ?? "{}"), { phase: "phase2" });
+    assert.deepEqual(JSON.parse(vix?.metadataJson ?? "{}"), { group: "cross_market" });
   });
 
-  it("migrates existing Phase 1 symbol tables for Phase 2 metadata columns", () => {
+  it("migrates older symbol tables to add the provider metadata columns", () => {
     const db = new Database(":memory:");
 
     db.exec(`
@@ -164,7 +157,7 @@ describe("API service layer", () => {
 
   it("applies saved admin widget visibility in catalog priority order", () => {
     const db = createMemoryDatabase();
-    const session = createAdminSession();
+    const session = createTestSession(db, "admin");
 
     insertWidgetResult(db, {
       widgetId: "momentum_exhaustion",
@@ -208,7 +201,7 @@ describe("API service layer", () => {
 
     updateWidgetSettings({ enabledWidgetIds: ["momentum_exhaustion", "trend_strength"] }, session, db);
 
-    const visible = new Set(getEffectiveVisibleWidgetIds(session, db));
+    const visible = new Set(getEffectiveVisibleWidgetIds(db));
     const latest = listLatestWidgetResults({ symbol: "BTCUSDT", timeframe: "1h" }, db).filter((widget) =>
       visible.has(widget.widgetId)
     );
@@ -219,13 +212,15 @@ describe("API service layer", () => {
     );
   });
 
-  it("rejects unsupported API query values", () => {
+  it("rejects unsupported API query values and anonymous reads", () => {
+    const db = createMemoryDatabase();
+
     assert.throws(() => validateSymbol("DOGEUSDT"), ApiInputError);
     assert.throws(() => validateWidgetId("unknown_widget"), ApiInputError);
     assert.throws(() => validateOptionalRange("3d"), ApiInputError);
-    assert.throws(() => validateSymbolAccess("ETHUSDT", getSessionFromToken(undefined)), ApiInputError);
+    assert.throws(() => validateSymbolAccess("ETHUSDT", anonymousTestSession(db)), AccessError);
     assert.equal(validateOptionalRange("7D"), "7d");
-    assert.equal(validateSymbolAccess("ETHUSDT", createAdminSession()), "ETHUSDT");
+    assert.equal(validateSymbolAccess("ETHUSDT", createTestSession(db, "viewer")), "ETHUSDT");
   });
 
   it("returns normalized market overview from stored candles", () => {

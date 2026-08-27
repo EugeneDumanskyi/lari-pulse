@@ -7,7 +7,7 @@ import type { CandleRecord } from "@/lib/db/types";
 import { WidgetRegistry } from "../registry";
 import { runWidgetRegistry } from "../runner";
 import { validateWidgetResult } from "../runner";
-import { phase1Widgets } from ".";
+import { cryptoWidgets } from ".";
 
 function makeCandles(symbol: string, timeframe: string, count = 90, start = 100): CandleRecord[] {
   return Array.from({ length: count }, (_, index) => {
@@ -35,9 +35,9 @@ function makeCandles(symbol: string, timeframe: string, count = 90, start = 100)
   });
 }
 
-test("phase1Widgets are registered with stable ids", () => {
+test("cryptoWidgets are registered with stable ids", () => {
   assert.deepEqual(
-    phase1Widgets.map((widget) => widget.id),
+    cryptoWidgets.map((widget) => widget.id),
     [
       "trend_strength",
       "momentum_exhaustion",
@@ -48,7 +48,7 @@ test("phase1Widgets are registered with stable ids", () => {
   );
 });
 
-test("phase1Widgets produce valid results and save to SQLite", async () => {
+test("cryptoWidgets produce valid results and save to SQLite", async () => {
   const db = new Database(":memory:");
   runMigrations(db);
 
@@ -60,7 +60,7 @@ test("phase1Widgets produce valid results and save to SQLite", async () => {
       "4h": makeCandles(symbol, "4h", 90, 110),
       "1d": makeCandles(symbol, "1d", 90, 120)
     };
-    const registry = new WidgetRegistry(phase1Widgets);
+    const registry = new WidgetRegistry(cryptoWidgets);
     const outcomes = await runWidgetRegistry(
       registry,
       {

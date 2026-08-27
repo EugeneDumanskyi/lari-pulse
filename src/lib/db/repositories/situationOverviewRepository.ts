@@ -5,7 +5,6 @@ interface SituationOverviewDbRow {
   id: number;
   symbol: string;
   timeframe: string;
-  access_plan: string;
   generated_at: string;
   title: string;
   summary: string;
@@ -29,7 +28,6 @@ function mapSituationOverview(row: SituationOverviewDbRow): SituationOverviewRec
     id: row.id,
     symbol: row.symbol,
     timeframe: row.timeframe,
-    accessPlan: row.access_plan,
     generatedAt: row.generated_at,
     title: row.title,
     summary: row.summary,
@@ -56,7 +54,6 @@ export function insertSituationOverview(db: Database.Database, overview: NewSitu
       INSERT INTO situation_overviews (
         symbol,
         timeframe,
-        access_plan,
         generated_at,
         title,
         summary,
@@ -76,7 +73,6 @@ export function insertSituationOverview(db: Database.Database, overview: NewSitu
       VALUES (
         @symbol,
         @timeframe,
-        @accessPlan,
         @generatedAt,
         @title,
         @summary,
@@ -102,7 +98,7 @@ export function insertSituationOverview(db: Database.Database, overview: NewSitu
 
 export function getLatestSituationOverview(
   db: Database.Database,
-  filters: { symbol: string; timeframe: string; accessPlan: string }
+  filters: { symbol: string; timeframe: string }
 ) {
   const row = db
     .prepare(
@@ -111,7 +107,6 @@ export function getLatestSituationOverview(
       FROM situation_overviews
       WHERE symbol = @symbol
         AND timeframe = @timeframe
-        AND access_plan = @accessPlan
       ORDER BY generated_at DESC, id DESC
       LIMIT 1
     `
@@ -123,7 +118,7 @@ export function getLatestSituationOverview(
 
 export function listSituationOverviewHistory(
   db: Database.Database,
-  filters: { symbol: string; timeframe: string; accessPlan: string; limit?: number }
+  filters: { symbol: string; timeframe: string; limit?: number }
 ) {
   const rows = db
     .prepare(
@@ -132,7 +127,6 @@ export function listSituationOverviewHistory(
       FROM situation_overviews
       WHERE symbol = @symbol
         AND timeframe = @timeframe
-        AND access_plan = @accessPlan
       ORDER BY generated_at DESC, id DESC
       LIMIT @limit
     `

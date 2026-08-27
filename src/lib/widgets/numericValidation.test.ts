@@ -4,18 +4,18 @@ import type { CorrelationPairResult } from "@/lib/correlations/types";
 import type { CandleRecord } from "@/lib/db/types";
 import { buildCrossMarketContext } from "./marketContext";
 import { liquidationsWidget } from "./liquidity";
-import { momentumExhaustionWidget } from "./phase1/momentumExhaustionWidget";
-import { multiTimeframeAlignmentWidget } from "./phase1/multiTimeframeAlignmentWidget";
-import { supportResistanceWidget } from "./phase1/supportResistanceWidget";
-import { trendStrengthWidget } from "./phase1/trendStrengthWidget";
-import { volumeConfirmationWidget } from "./phase1/volumeConfirmationWidget";
-import { crossMarketDivergenceWidget } from "./phase2/crossMarketDivergenceWidget";
-import { dollarPressureWidget } from "./phase2/dollarPressureWidget";
-import { goldRiskHedgeWidget } from "./phase2/goldRiskHedgeWidget";
-import { macroRiskPulseWidget } from "./phase2/macroRiskPulseWidget";
-import { nasdaqCryptoCorrelationWidget } from "./phase2/nasdaqCryptoCorrelationWidget";
-import { oilInflationPressureWidget } from "./phase2/oilInflationPressureWidget";
-import { riskRegimeWidget } from "./phase2/riskRegimeWidget";
+import { momentumExhaustionWidget } from "./crypto/momentumExhaustionWidget";
+import { multiTimeframeAlignmentWidget } from "./crypto/multiTimeframeAlignmentWidget";
+import { supportResistanceWidget } from "./crypto/supportResistanceWidget";
+import { trendStrengthWidget } from "./crypto/trendStrengthWidget";
+import { volumeConfirmationWidget } from "./crypto/volumeConfirmationWidget";
+import { crossMarketDivergenceWidget } from "./crossMarket/crossMarketDivergenceWidget";
+import { dollarPressureWidget } from "./crossMarket/dollarPressureWidget";
+import { goldRiskHedgeWidget } from "./crossMarket/goldRiskHedgeWidget";
+import { macroRiskPulseWidget } from "./crossMarket/macroRiskPulseWidget";
+import { nasdaqCryptoCorrelationWidget } from "./crossMarket/nasdaqCryptoCorrelationWidget";
+import { oilInflationPressureWidget } from "./crossMarket/oilInflationPressureWidget";
+import { riskRegimeWidget } from "./crossMarket/riskRegimeWidget";
 import type { WidgetLiquidationSummary } from "./types";
 
 const now = new Date("2026-05-26T10:00:00.000Z");
@@ -230,26 +230,6 @@ function expectedStructure(candles: CandleRecord[], lookback = 5) {
   };
 }
 
-function expectedTrendBias(price: number, ma7: number, ma30: number) {
-  if (price > ma7 && price > ma30 && ma7 > ma30) {
-    return "bullish";
-  }
-
-  if (price < ma7 && price < ma30 && ma7 < ma30) {
-    return "bearish";
-  }
-
-  if (Math.abs(price - ma30) / ma30 < 0.003) {
-    return "neutral";
-  }
-
-  return "mixed";
-}
-
-function expectedConfidenceFromData(candles: CandleRecord[], minimumCandles: number) {
-  return clampExpected(0.35 + (candles.length / minimumCandles) * 0.45, 0.35, 0.8);
-}
-
 function makeCryptoCandles(
   symbol: string,
   closes: number[],
@@ -279,7 +259,7 @@ function makeCryptoCandles(
   });
 }
 
-function expectedPhase2Signal(candles: CandleRecord[]) {
+function expectedCrossMarketSignal(candles: CandleRecord[]) {
   const latest = candles.at(-1) ?? null;
 
   if (candles.length < 20 || !latest) {
@@ -823,7 +803,7 @@ test("Multi-Timeframe Alignment validates per-timeframe MA/RSI, alignment ratio,
   assert.match(partial.summary, /at least two timeframes with 30 candles/);
 });
 
-test("Phase 2 Risk Regime validates counts, pressure score, confidence, and missing asset warnings", async () => {
+test("Risk Regime validates counts, pressure score, confidence, and missing asset warnings", async () => {
   const assetCandles = {
     BTCUSDT: { "1d": makeCandles("BTCUSDT", "up", 60_000) },
     NASDAQ100: { "1d": makeCandles("NASDAQ100", "up", 17_000) },
@@ -922,7 +902,7 @@ test("Dollar, Gold, Oil, and Cross-Market Divergence validate additive formulas,
   });
 
   const oil = await oilInflationPressureWidget.run({ symbol: "BTCUSDT", timeframe: "1d", marketContext: context, now });
-  const oilSignal = expectedPhase2Signal(assetCandles.WTI["1d"]);
+  const oilSignal = expectedCrossMarketSignal(assetCandles.WTI["1d"]);
   const oilVolatility = ((oil.details.confirmations as Record<string, unknown>).oilVolatility20Pct as number);
   assert.equal(oil.score, Math.round(clampExpected(50 + 24 + 10 + 7 + 8 + 5 + Math.min(oilVolatility * 2, 10), 0, 100)));
   assert.equal(oil.direction, "inflation_pressure");

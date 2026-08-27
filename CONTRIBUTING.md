@@ -19,11 +19,19 @@ Before opening a pull request, run:
 ```bash
 npm run lint
 npm run typecheck
+npm run test:db
+npm run test:auth
 npm run test:indicators
+npm run test:correlations
+npm run test:collectors
 npm run test:widgets
 npm run test:services
 npm run test:scheduler
 ```
+
+CI runs the same checks plus `npm run build`. If you change UI flows, also run `npm run test:e2e`.
+
+Services decide access with `requireRole` from `src/lib/auth/access.ts`; don't gate features only in React.
 
 Keep pull requests focused. One feature or fix per PR is easiest to review.
 

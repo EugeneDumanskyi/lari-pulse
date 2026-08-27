@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { createAdminSession, getSessionFromToken } from "@/lib/auth/access";
+import { AccessError } from "@/lib/auth/access";
+import { anonymousTestSession, createTestSession } from "@/lib/auth/testing";
 import { runMigrations } from "@/lib/db/migrations";
 import { insertWidgetResult } from "@/lib/db/repositories/widgetResultsRepository";
 import { getOpportunityRadar, scoreOpportunityOverview } from "./opportunityRadarService";
@@ -73,25 +74,18 @@ describe("opportunity radar service", () => {
     assert.ok(clean >= 60);
   });
 
-  it("respects basic symbol access when scanning opportunities", async () => {
+  it("requires a signed-in viewer to scan opportunities", async () => {
     const db = createMemoryDatabase();
-    const session = getSessionFromToken(undefined);
 
-    const radar = await getOpportunityRadar({
-      db,
-      session,
-      symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-      timeframes: ["1h"],
-      now: new Date("2026-06-01T10:00:00.000Z")
-    });
-
-    assert.deepEqual(radar.scannedSymbols, ["BTCUSDT"]);
-    assert.equal(radar.items.every((item) => item.symbol === "BTCUSDT"), true);
+    await assert.rejects(
+      () => getOpportunityRadar({ db, session: anonymousTestSession(db), timeframes: ["1h"] }),
+      AccessError
+    );
   });
 
   it("ranks configured symbols and timeframes from stored widget signals", async () => {
     const db = createMemoryDatabase();
-    const session = createAdminSession();
+    const session = createTestSession(db, "viewer");
 
     insertWidgetResult(db, {
       widgetId: "trend_strength",

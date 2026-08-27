@@ -1,11 +1,9 @@
 export type WidgetGroup = "crypto" | "cross_market";
-export type WidgetPlanTier = "basic" | "pro" | "enterprise";
 
 export interface WidgetCatalogItem {
   widgetId: string;
   title: string;
   group: WidgetGroup;
-  planTier: WidgetPlanTier;
   defaultEnabled: boolean;
   priority: number;
   category: string;
@@ -18,7 +16,6 @@ export const widgetCatalog = [
     widgetId: "trend_strength",
     title: "Trend Strength",
     group: "crypto",
-    planTier: "basic",
     defaultEnabled: true,
     priority: 10,
     category: "trend",
@@ -29,7 +26,6 @@ export const widgetCatalog = [
     widgetId: "multi_timeframe_alignment",
     title: "Multi-Timeframe Alignment",
     group: "crypto",
-    planTier: "pro",
     defaultEnabled: true,
     priority: 40,
     category: "trend",
@@ -40,7 +36,6 @@ export const widgetCatalog = [
     widgetId: "liquidations",
     title: "Liquidations",
     group: "crypto",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 30,
     category: "liquidity",
@@ -51,7 +46,6 @@ export const widgetCatalog = [
     widgetId: "derivatives_pressure",
     title: "Derivatives Pressure",
     group: "crypto",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 35,
     category: "derivatives",
@@ -62,7 +56,6 @@ export const widgetCatalog = [
     widgetId: "momentum_exhaustion",
     title: "Momentum Exhaustion",
     group: "crypto",
-    planTier: "basic",
     defaultEnabled: true,
     priority: 50,
     category: "momentum",
@@ -73,7 +66,6 @@ export const widgetCatalog = [
     widgetId: "support_resistance_pressure",
     title: "Support / Resistance Pressure",
     group: "crypto",
-    planTier: "pro",
     defaultEnabled: true,
     priority: 60,
     category: "levels",
@@ -84,7 +76,6 @@ export const widgetCatalog = [
     widgetId: "volume_confirmation",
     title: "Volume Confirmation",
     group: "crypto",
-    planTier: "pro",
     defaultEnabled: true,
     priority: 70,
     category: "volume",
@@ -95,7 +86,6 @@ export const widgetCatalog = [
     widgetId: "risk_regime",
     title: "Risk Regime",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 110,
     category: "macro",
@@ -106,7 +96,6 @@ export const widgetCatalog = [
     widgetId: "macro_risk_pulse",
     title: "Macro Risk Pulse",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 120,
     category: "macro",
@@ -117,7 +106,6 @@ export const widgetCatalog = [
     widgetId: "dollar_pressure",
     title: "Dollar Pressure",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 130,
     category: "macro",
@@ -128,7 +116,6 @@ export const widgetCatalog = [
     widgetId: "nasdaq_crypto_correlation",
     title: "Nasdaq-Crypto Correlation",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 140,
     category: "correlation",
@@ -139,7 +126,6 @@ export const widgetCatalog = [
     widgetId: "cross_market_divergence",
     title: "Cross-Market Divergence",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 150,
     category: "divergence",
@@ -150,7 +136,6 @@ export const widgetCatalog = [
     widgetId: "gold_risk_hedge",
     title: "Gold / Risk Hedge",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 160,
     category: "macro",
@@ -161,7 +146,6 @@ export const widgetCatalog = [
     widgetId: "oil_inflation_pressure",
     title: "Oil Inflation Pressure",
     group: "cross_market",
-    planTier: "enterprise",
     defaultEnabled: true,
     priority: 170,
     category: "macro",
@@ -194,18 +178,4 @@ export function sortByWidgetPriority<T extends { widgetId: string }>(items: T[])
 
     return left.widgetId.localeCompare(right.widgetId);
   });
-}
-
-export function defaultVisibleWidgetIdsForPlan(plan: WidgetPlanTier | "basic"): string[] {
-  if (plan === "basic") {
-    return widgetCatalog
-      .filter((item) => item.planTier === "basic" && item.defaultEnabled)
-      .sort((left, right) => left.priority - right.priority)
-      .map((item) => item.widgetId);
-  }
-
-  return widgetCatalog
-    .filter((item) => item.defaultEnabled)
-    .sort((left, right) => left.priority - right.priority)
-    .map((item) => item.widgetId);
 }

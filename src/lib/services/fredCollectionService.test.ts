@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { phase2Symbols } from "@/lib/config/symbols";
+import { crossMarketSymbols } from "@/lib/config/symbols";
 import { runMigrations } from "@/lib/db/migrations";
 import { getCandlesBySymbolTimeframe } from "@/lib/db/repositories/candlesRepository";
 import { getSourceRunById } from "@/lib/db/repositories/sourceRunsRepository";
@@ -21,14 +21,14 @@ afterEach(() => {
 });
 
 describe("FRED collection service", () => {
-  it("keeps the complete Phase 2 asset list configured as inactive daily FRED symbols", () => {
+  it("keeps the complete cross-market asset list configured as inactive daily FRED symbols", () => {
     assert.deepEqual(
-      phase2Symbols.map((symbol) => symbol.symbol),
+      crossMarketSymbols.map((symbol) => symbol.symbol),
       ["XAUUSD", "WTI", "NASDAQ100", "SPX", "DXY", "US10Y", "VIX"]
     );
-    assert.equal(phase2Symbols.every((symbol) => symbol.source === "fred"), true);
-    assert.equal(phase2Symbols.every((symbol) => symbol.providerSymbol), true);
-    assert.equal(phase2Symbols.every((symbol) => symbol.isActive === false), true);
+    assert.equal(crossMarketSymbols.every((symbol) => symbol.source === "fred"), true);
+    assert.equal(crossMarketSymbols.every((symbol) => symbol.providerSymbol), true);
+    assert.equal(crossMarketSymbols.every((symbol) => symbol.isActive === false), true);
   });
 
   it("fetches, normalizes, stores, and logs the starter cross-market asset", async () => {
@@ -67,7 +67,7 @@ describe("FRED collection service", () => {
     assert.equal(activeSymbols.some((symbol) => symbol.symbol === "US10Y"), false);
   });
 
-  it("collects multiple configured Phase 2 assets through provider-symbol mappings", async () => {
+  it("collects multiple configured cross-market assets through provider-symbol mappings", async () => {
     const db = createMemoryDatabase();
     const requestedUrls: string[] = [];
 

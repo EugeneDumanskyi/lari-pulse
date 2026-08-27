@@ -251,7 +251,6 @@ export function AlertsFoundation() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusBadge tone={session?.isAdmin ? "green" : "amber"}>{session?.isAdmin ? "Enterprise" : "Basic"}</StatusBadge>
               <StatusBadge tone={openEvents.length > 0 ? "red" : "green"}>{openEvents.length} open</StatusBadge>
               <StatusBadge tone="blue">{rules.length} rules</StatusBadge>
             </div>
@@ -434,7 +433,7 @@ export function AlertsFoundation() {
                 </div>
                 {rules.length === 0 ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm leading-6 text-white/58">
-                    No alert rules yet. Rules are local to this workspace and are evaluated from Situation Overview changes.
+                    No alert rules yet. Rules are private to your account and are evaluated from Situation Overview changes.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">

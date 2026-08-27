@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { defaultSymbols, phase2Symbols } from "@/lib/config/symbols";
+import { defaultSymbols, crossMarketSymbols } from "@/lib/config/symbols";
 import { runMigrations } from "@/lib/db/migrations";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
 import { getLatestWidgetResults } from "@/lib/db/repositories/widgetResultsRepository";
@@ -36,7 +36,7 @@ function makeDailyCandles(symbol: string, source: string, count = 45, start = 10
 }
 
 describe("cross-market widget service", () => {
-  it("runs Phase 2 widgets from stored daily candles without persisting results", async () => {
+  it("runs cross-market widgets from stored daily candles without persisting results", async () => {
     const db = createMemoryDatabase();
 
     try {
@@ -44,7 +44,7 @@ describe("cross-market widget service", () => {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 100));
       }
 
-      for (const config of phase2Symbols) {
+      for (const config of crossMarketSymbols) {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 80));
       }
 
@@ -85,7 +85,7 @@ describe("cross-market widget service", () => {
     }
   });
 
-  it("can persist Phase 2 widget results for scheduler refreshes", async () => {
+  it("can persist cross-market widget results for scheduler refreshes", async () => {
     const db = createMemoryDatabase();
 
     try {
@@ -93,7 +93,7 @@ describe("cross-market widget service", () => {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 100));
       }
 
-      for (const config of phase2Symbols) {
+      for (const config of crossMarketSymbols) {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 80));
       }
 
@@ -124,7 +124,7 @@ describe("cross-market widget service", () => {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 100));
       }
 
-      for (const config of phase2Symbols) {
+      for (const config of crossMarketSymbols) {
         upsertCandles(db, makeDailyCandles(config.symbol, config.source, 45, 80));
       }
 

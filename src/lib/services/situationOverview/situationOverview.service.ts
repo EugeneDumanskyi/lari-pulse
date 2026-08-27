@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { filterVisibleWidgetResults, type AuthSession } from "@/lib/auth/access";
+import { filterVisibleWidgets, requireRole, type AuthSession } from "@/lib/auth/access";
 import type { WidgetResultApi } from "@/lib/api/types";
 import { appConfig } from "@/lib/config/appConfig";
 import { getDatabase } from "@/lib/db/client";
@@ -40,24 +40,9 @@ export interface GetSituationOverviewOptions {
 
 const minimumSnapshotIntervalMs = 15 * 60 * 1000;
 
-function expectedWidgetIdsForSession(session: AuthSession) {
-  const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-  const visibleSet = new Set(visibleWidgetIds);
-  const groupAllowed = (widgetId: string) => {
-    const item = widgetCatalog.find((entry) => entry.widgetId === widgetId);
-
-    if (!item) {
-      return false;
-    }
-
-    if (item.group === "cross_market") {
-      return session.isAdmin;
-    }
-
-    return true;
-  };
-
-  return visibleWidgetIds.filter((id) => visibleSet.has(id) && groupAllowed(id));
+function expectedWidgetIds(visibleWidgetIds: string[]) {
+  const known = new Set<string>(widgetCatalog.map((entry) => entry.widgetId));
+  return visibleWidgetIds.filter((id) => known.has(id));
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -138,15 +123,10 @@ function shouldPersistOverview(
   return now.getTime() - previousTime >= minimumSnapshotIntervalMs;
 }
 
-function persistOverview(
-  db: Database.Database,
-  overview: SituationOverview,
-  accessPlan: AuthSession["plan"]
-) {
+function persistOverview(db: Database.Database, overview: SituationOverview) {
   return insertSituationOverview(db, {
     symbol: overview.symbol,
     timeframe: overview.timeframe,
-    accessPlan,
     generatedAt: overview.generatedAt,
     title: overview.title,
     summary: overview.summary,
@@ -166,6 +146,8 @@ function persistOverview(
 }
 
 export function listSituationOverviewTimeline(options: GetSituationOverviewOptions & { limit?: number }) {
+  requireRole(options.session, "viewer");
+
   if (!options.db) {
     initializeDatabase();
   }
@@ -174,21 +156,25 @@ export function listSituationOverviewTimeline(options: GetSituationOverviewOptio
   return listSituationOverviewHistory(db, {
     symbol: options.symbol,
     timeframe: options.timeframe,
-    accessPlan: options.session.plan,
     limit: options.limit ?? 50
   }).map(historyItemFromRecord);
 }
 
+/**
+ * Overviews depend only on market data and the instance-wide widget
+ * visibility, so every reader sees (and persists into) the same timeline.
+ */
 export async function getSituationOverview(options: GetSituationOverviewOptions): Promise<SituationOverview> {
+  requireRole(options.session, "viewer");
+
   if (!options.db) {
     initializeDatabase();
   }
 
   const db = options.db ?? getDatabase();
   const now = options.now ?? new Date();
-  const visibleWidgetIds = getEffectiveVisibleWidgetIds(options.session);
-  const expectedWidgetIds = expectedWidgetIdsForSession(options.session);
-  const cryptoWidgets = filterVisibleWidgetResults(
+  const visibleWidgetIds = getEffectiveVisibleWidgetIds(db);
+  const cryptoWidgets = filterVisibleWidgets(
     await listLatestWidgetResultsWithDerivedLiquidity(
       {
         symbol: options.symbol,
@@ -196,21 +182,14 @@ export async function getSituationOverview(options: GetSituationOverviewOptions)
       },
       db
     ),
-    {
-      ...options.session,
-      visibleWidgetIds
-    }
+    { visibleWidgetIds }
   );
-  let crossMarketWidgets: WidgetResultApi[] = [];
-
-  if (options.session.isAdmin) {
-    const crossMarket = await getCrossMarketWidgets({
-      timeframe: "1d",
-      db,
-      visibleWidgetIds
-    });
-    crossMarketWidgets = crossMarket.results;
-  }
+  const crossMarket = await getCrossMarketWidgets({
+    timeframe: "1d",
+    db,
+    visibleWidgetIds
+  });
+  const crossMarketWidgets: WidgetResultApi[] = crossMarket.results;
 
   const marketOverview = getStoredDashboardMarketOverview(
     {
@@ -222,8 +201,7 @@ export async function getSituationOverview(options: GetSituationOverviewOptions)
   );
   const previousRecord = getLatestSituationOverview(db, {
     symbol: options.symbol,
-    timeframe: options.timeframe,
-    accessPlan: options.session.plan
+    timeframe: options.timeframe
   });
   const previousOverview = previousRecord ? overviewFromRecord(previousRecord) : null;
   const overview = buildSituationOverview({
@@ -233,14 +211,14 @@ export async function getSituationOverview(options: GetSituationOverviewOptions)
     widgets: cryptoWidgets,
     crossMarketWidgets,
     marketOverview,
-    expectedWidgetIds,
+    expectedWidgetIds: expectedWidgetIds(visibleWidgetIds),
     previousOverview
   });
 
   let persistedOverviewId: number | null = null;
 
   if (shouldPersistOverview(previousRecord, overview, now)) {
-    persistedOverviewId = persistOverview(db, overview, options.session.plan);
+    persistedOverviewId = persistOverview(db, overview);
   }
 
   if (options.evaluateAlerts !== false) {
@@ -248,7 +226,6 @@ export async function getSituationOverview(options: GetSituationOverviewOptions)
       db,
       overview,
       previousOverview,
-      accessPlan: options.session.plan,
       overviewId: persistedOverviewId
     });
   }
@@ -256,7 +233,6 @@ export async function getSituationOverview(options: GetSituationOverviewOptions)
   overview.history = listSituationOverviewHistory(db, {
     symbol: options.symbol,
     timeframe: options.timeframe,
-    accessPlan: options.session.plan,
     limit: 6
   }).map(historyItemFromRecord);
 

@@ -1,5 +1,11 @@
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Locator, type Page } from "@playwright/test";
 import { mockCryptoMacroApis } from "./crypto-macro.fixtures";
+
+async function expectListItems(card: Locator, items: string[]) {
+  for (const item of items) {
+    await expect(card.getByRole("listitem").filter({ hasText: item }).first()).toBeVisible();
+  }
+}
 
 const test = base.extend<{ qaGuards: void }>({
   qaGuards: [async ({ page }, use) => {
@@ -83,7 +89,7 @@ test("renders deterministic numeric formatting for crypto widgets", async ({ pag
   await openDetails(mtf);
   await expect(mtf.getByText("Alignment Ratio")).toBeVisible();
   await expect(mtf.getByText("0.75", { exact: true })).toBeVisible();
-  await expect(mtf.getByText("15m; 1h; 4h; 1d")).toBeVisible();
+  await expectListItems(mtf, ["15m", "1h", "4h", "1d"]);
   await mtf.getByRole("button", { name: "Back" }).click();
 
   const momentum = widgetCard(page, "Momentum Exhaustion");
@@ -103,7 +109,7 @@ test("renders deterministic numeric formatting for crypto widgets", async ({ pag
   await expect(support.getByText(/Medium.*72%/)).toBeVisible();
   await openDetails(support);
   await expect(support.getByText("Nearest Resistance")).toBeVisible();
-  await expect(support.getByText(/Price: 121\.20; Touches: 3\.00; Distance Pct: 0\.66/)).toBeVisible();
+  await expectListItems(support, ["Price: 121.20", "Touches: 3.00", "Distance Pct: 0.66"]);
   await support.getByRole("button", { name: "Back" }).click();
 
   const volume = widgetCard(page, "Volume Confirmation");
@@ -127,7 +133,7 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await expect(risk.getByText(/High.*75%/)).toBeVisible();
   await openDetails(risk);
   await expect(risk.getByText("Counts")).toBeVisible();
-  await expect(risk.getByText(/Risk On Count: 2\.00; Risk Weakness Count: 1\.00; Risk Off Pressure Count: 2\.00/)).toBeVisible();
+  await expectListItems(risk, ["Risk On Count: 2.00", "Risk Weakness Count: 1.00", "Risk Off Pressure Count: 2.00"]);
   await risk.getByRole("button", { name: "Back" }).click();
 
   const macro = widgetCard(page, "Macro Risk Pulse");
@@ -138,7 +144,7 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await expect(macro.getByText("Conflict Ratio")).toBeVisible();
   await expect(macro.getByText("0.411", { exact: true })).toBeVisible();
   await expect(macro.getByText("Correlations")).toBeVisible();
-  await expect(macro.getByText(/Btc Nasdaq Latest: 0\.45; Btc Dxy Latest: -0\.50; Pair Count: 2\.00/)).toBeVisible();
+  await expectListItems(macro, ["Btc Nasdaq Latest: 0.45", "Btc Dxy Latest: -0.50", "Pair Count: 2.00"]);
   await macro.getByRole("button", { name: "Back" }).click();
 
   const dollar = widgetCard(page, "Dollar Pressure");
@@ -147,7 +153,7 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await openDetails(dollar);
   await expect(dollar.getByText("Raw Score")).toBeVisible();
   await expect(dollar.getByText("100.00", { exact: true })).toBeVisible();
-  await expect(dollar.getByText(/Btc Dxy Latest: -0\.60; Gold Dxy Latest: 0\.20/)).toBeVisible();
+  await expectListItems(dollar, ["Btc Dxy Latest: -0.60", "Gold Dxy Latest: 0.20"]);
   await dollar.getByRole("button", { name: "Back" }).click();
 
   const divergence = widgetCard(page, "Cross-Market Divergence");
@@ -155,7 +161,7 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await expect(divergence.getByText("high divergence", { exact: true })).toBeVisible();
   await openDetails(divergence);
   await expect(divergence.getByText("Pair Divergences")).toBeVisible();
-  await expect(divergence.getByText("BTC / DXY: right outperforming; Oil / S&P 500: left outperforming")).toBeVisible();
+  await expectListItems(divergence, ["BTC / DXY: right outperforming", "Oil / S&P 500: left outperforming"]);
   await divergence.getByRole("button", { name: "Back" }).click();
 
   const gold = widgetCard(page, "Gold / Risk Hedge");
@@ -163,7 +169,7 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await expect(gold.getByText("dollar yield resilient", { exact: true })).toBeVisible();
   await openDetails(gold);
   await expect(gold.getByText("Drivers")).toBeVisible();
-  await expect(gold.getByText(/Equities Weak: Yes; Pressure Rising: Yes; Inflation Impulse: Yes/)).toBeVisible();
+  await expectListItems(gold, ["Equities Weak: Yes", "Pressure Rising: Yes", "Inflation Impulse: Yes"]);
   await gold.getByRole("button", { name: "Back" }).click();
 
   const oil = widgetCard(page, "Oil Inflation Pressure");
@@ -171,5 +177,5 @@ test("renders deterministic numeric formatting for cross-market widgets", async 
   await expect(oil.getByText("inflation pressure", { exact: true })).toBeVisible();
   await openDetails(oil);
   await expect(oil.getByText("Confirmations")).toBeVisible();
-  await expect(oil.getByText(/Yield Confirmation: Yes; Dollar Confirmation: Yes; Equity Stress: Yes; Hedge Confirmation: Yes/)).toBeVisible();
+  await expectListItems(oil, ["Yield Confirmation: Yes", "Dollar Confirmation: Yes", "Equity Stress: Yes", "Hedge Confirmation: Yes"]);
 });

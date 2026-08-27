@@ -37,7 +37,7 @@ function makeCandles(symbol: string, timeframe: string, count = 90, start = 100)
 }
 
 describe("widget calculation service", () => {
-  it("runs all phase 1 widgets from stored candles and saves results", async () => {
+  it("runs all crypto widgets from stored candles and saves results", async () => {
     const db = createMemoryDatabase();
 
     try {

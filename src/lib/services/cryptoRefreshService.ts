@@ -4,20 +4,20 @@ import {
   type WidgetCalculationResult
 } from "./widgetCalculationService";
 
-export interface Phase1RefreshOptions extends CollectionRunOptions {
+export interface CryptoRefreshOptions extends CollectionRunOptions {
   calculateWidgets?: boolean;
 }
 
-export interface Phase1RefreshResult {
+export interface CryptoRefreshResult {
   status: "ok" | "partial" | "error";
   collection: Awaited<ReturnType<typeof runBinanceCollection>>;
   widgetCalculation?: WidgetCalculationResult;
 }
 
 function mergeStatuses(
-  collectionStatus: Phase1RefreshResult["collection"]["status"],
+  collectionStatus: CryptoRefreshResult["collection"]["status"],
   widgetStatus?: WidgetCalculationResult["status"]
-): Phase1RefreshResult["status"] {
+): CryptoRefreshResult["status"] {
   if (collectionStatus === "error" || widgetStatus === "error") {
     return "error";
   }
@@ -29,9 +29,9 @@ function mergeStatuses(
   return "ok";
 }
 
-export async function runPhase1Refresh(
-  options: Phase1RefreshOptions = {}
-): Promise<Phase1RefreshResult> {
+export async function runCryptoRefresh(
+  options: CryptoRefreshOptions = {}
+): Promise<CryptoRefreshResult> {
   const collection = await runBinanceCollection({
     symbols: options.symbols,
     timeframes: options.timeframes,

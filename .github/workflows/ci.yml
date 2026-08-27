@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit tests
+        run: |
+          npm run test:db
+          npm run test:auth
+          npm run test:indicators
+          npm run test:correlations
+          npm run test:collectors
+          npm run test:widgets
+          npm run test:services
+          npm run test:scheduler
+      - run: npm run build

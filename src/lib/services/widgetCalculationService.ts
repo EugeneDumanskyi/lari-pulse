@@ -4,7 +4,7 @@ import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import { getCandlesBySymbolTimeframe } from "@/lib/db/repositories/candlesRepository";
 import type { CandleRecord } from "@/lib/db/types";
-import { buildPhase1MarketContext } from "@/lib/widgets/marketContext";
+import { buildCryptoMarketContext } from "@/lib/widgets/marketContext";
 import { widgetRegistry, type WidgetRegistry } from "@/lib/widgets/registry";
 import { runWidgetRegistry } from "@/lib/widgets/runner";
 import type { WidgetRunOutcome } from "@/lib/widgets/types";
@@ -118,7 +118,7 @@ export async function runWidgetCalculations(
           symbol,
           timeframe,
           candles,
-          marketContext: buildPhase1MarketContext({
+          marketContext: buildCryptoMarketContext({
             timeframeCandles,
             latestCandleUpdatedAt: latestCandleUpdatedAt(candles),
             liquidity: buildLiquidityWidgetContext(db, {

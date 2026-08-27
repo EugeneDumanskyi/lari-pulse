@@ -10,13 +10,13 @@ Which accessible market states deserve attention right now, and why?
 
 It does not produce trade instructions, position sizing, or predictions.
 
-## Workspace
+## Page
 
 ```text
 /radar
 ```
 
-The workspace supports:
+The page supports:
 
 - symbol scope controls
 - timeframe scope controls
@@ -24,7 +24,7 @@ The workspace supports:
 - ranked setup rows
 - top reason, top drivers, blockers, and watch conditions
 
-Basic access can scan only accessible symbols. Current Basic access means BTC only. Admin/Enterprise access can scan BTC, ETH, and SOL across configured collection timeframes.
+Any signed-in user (or anonymous visitor when the public dashboard is on) can scan BTC, ETH, and SOL across the configured collection timeframes.
 
 ## API
 

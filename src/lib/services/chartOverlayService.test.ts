@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { createAdminSession } from "@/lib/auth/access";
+import { createTestSession } from "@/lib/auth/testing";
 import { runMigrations } from "@/lib/db/migrations";
 import { insertLiquidationEvents } from "@/lib/db/repositories/liquidityRepository";
 import { insertSituationOverview } from "@/lib/db/repositories/situationOverviewRepository";
@@ -38,7 +38,7 @@ function insertResult(
 describe("chart overlay service", () => {
   it("extracts support/resistance and liquidation overlays from latest widget details", async () => {
     const db = makeDb();
-    const session = createAdminSession();
+    const session = createTestSession(db, "viewer");
 
     insertResult(db, "support_resistance_pressure", {
       currentPrice: 100_000,
@@ -72,12 +72,11 @@ describe("chart overlay service", () => {
 
   it("extracts priced Situation Overview watch conditions when history exists", async () => {
     const db = makeDb();
-    const session = createAdminSession();
+    const session = createTestSession(db, "viewer");
 
     insertSituationOverview(db, {
       symbol: "BTCUSDT",
       timeframe: "1h",
-      accessPlan: "enterprise",
       generatedAt: "2026-06-01T00:05:00.000Z",
       title: "BTC test",
       summary: "Test summary",

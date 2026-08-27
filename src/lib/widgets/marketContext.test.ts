@@ -91,11 +91,11 @@ test("cross-market context exposes asset candles, correlations, and regime hints
   assert.equal(listRegimeHints(context)[0].bias, "risk_off_pressure");
 });
 
-test("phase 2 widgets can consume cross-market context and return the existing result contract", async () => {
+test("cross-market widgets can consume cross-market context and return the existing result contract", async () => {
   const widget: WidgetEngine = {
     id: "cross_market_contract_probe",
     name: "Cross-Market Contract Probe",
-    description: "Verifies that Phase 2 widgets can read multi-asset context.",
+    description: "Verifies that cross-market widgets can read multi-asset context.",
     requiredInputs: ["marketContext.assetCandles", "marketContext.correlations"],
     async run(context) {
       const btcCandles = getAssetCandles(context.marketContext, "BTCUSDT", "1d");

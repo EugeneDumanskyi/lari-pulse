@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { fetchFredDailySeries } from "@/lib/collectors/fredCollector";
 import type { CollectorError, NormalizedCandle } from "@/lib/collectors/types";
-import { phase2Symbols } from "@/lib/config/symbols";
+import { crossMarketSymbols } from "@/lib/config/symbols";
 import { closeDatabase, getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
@@ -37,7 +37,7 @@ const MAX_LIMIT = 5000;
 const SUPPORTED_TIMEFRAMES = ["1d"] as const;
 
 function getConfiguredSymbols() {
-  return phase2Symbols.filter((symbol) => symbol.source === SOURCE);
+  return crossMarketSymbols.filter((symbol) => symbol.source === SOURCE);
 }
 
 function requestedValues<T extends string>(
@@ -87,7 +87,7 @@ export async function runFredCollection(
   }
 
   const db = options.db ?? getDatabase();
-  seedSymbols(db, phase2Symbols);
+  seedSymbols(db, crossMarketSymbols);
 
   const startedAt = new Date().toISOString();
   const sourceRunId = insertSourceRun(db, {

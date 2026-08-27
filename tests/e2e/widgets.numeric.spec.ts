@@ -1,5 +1,11 @@
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Locator, type Page } from "@playwright/test";
 import { mockWidgetApis } from "./widgets.fixtures";
+
+async function expectListItems(card: Locator, items: string[]) {
+  for (const item of items) {
+    await expect(card.getByRole("listitem").filter({ hasText: item }).first()).toBeVisible();
+  }
+}
 
 const test = base.extend<{ qaGuards: void }>({
   qaGuards: [async ({ page }, use) => {
@@ -97,11 +103,11 @@ test("renders deterministic Nasdaq-Crypto Correlation score, confidence, decimal
   await expect(correlationCard.getByText(/^57$/)).toBeVisible();
   await expect(correlationCard.getByText(/^75%$/)).toBeVisible();
   await expect(correlationCard.getByText("Assets")).toBeVisible();
-  await expect(correlationCard.getByText(/BTCUSDT: bullish: 0\.11%; ETHUSDT: bullish: 0\.23%/)).toBeVisible();
+  await expectListItems(correlationCard, ["BTCUSDT: bullish: 0.11%", "ETHUSDT: bullish: 0.23%"]);
   await expect(correlationCard.getByText("Average Correlation")).toBeVisible();
   await expect(correlationCard.getByText("0.387")).toBeVisible();
   await expect(correlationCard.getByText("Divergent Pair Count")).toBeVisible();
   await expect(correlationCard.getByText(/^1.00$/)).toBeVisible();
   await expect(correlationCard.getByText("Pairs")).toBeVisible();
-  await expect(correlationCard.getByText("btc_nasdaq100; eth_nasdaq100; sol_nasdaq100")).toBeVisible();
+  await expectListItems(correlationCard, ["btc_nasdaq100", "eth_nasdaq100", "sol_nasdaq100"]);
 });

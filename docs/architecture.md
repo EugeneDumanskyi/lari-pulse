@@ -236,11 +236,13 @@ Liquidity data lives in its own table, never in `candles`.
 ```text
 derivatives_metrics   normalized public futures context per symbol and period
 situation_overviews   persisted Situation Overview snapshots
-alert_rules           local alert rules
-alert_events          alert events, deduplicated while open
-portfolio_items       locally tracked holdings and watchlist entries
-users                 accounts: email, scrypt password hash, role (user | admin), status
+alert_rules           alert rules, owned by a user
+alert_events          alert events, deduplicated while open, owned by the rule's user
+portfolio_items       holdings and watchlist entries, owned by a user
+users                 accounts: email, scrypt password hash, role (admin | analyst | viewer), status
 sessions              session token hashes with expiry, user agent and IP
+invites               one-time invite token hashes with role, optional email and expiry
+app_settings          instance settings: signup_mode, public_dashboard
 ```
 
 ## Widget Contract
@@ -417,7 +419,7 @@ Shared trend helpers live next to the engines. Correlation math stays in the cor
 
 ### Scheduling
 
-Cross-market refresh is optional (`PHASE2_SCHEDULER_ENABLED`) and runs on its own interval (`PHASE2_REFRESH_INTERVAL_SECONDS`, daily by default). The due check reads the latest successful FRED run, so restarts do not cause duplicate collection. A refresh collects FRED data, recalculates correlations, runs the cross-market widgets and stores `CROSS_MARKET` widget results.
+Cross-market refresh is optional (`MACRO_SCHEDULER_ENABLED`) and runs on its own interval (`MACRO_REFRESH_INTERVAL_SECONDS`, daily by default). The due check reads the latest successful FRED run, so restarts do not cause duplicate collection. A refresh collects FRED data, recalculates correlations, runs the cross-market widgets and stores `CROSS_MARKET` widget results.
 
 ## Liquidations
 
@@ -489,9 +491,22 @@ Alert rules are evaluated from Situation Overview state in the service layer, ne
 
 ## Access and Visibility
 
-Accounts live in `users` and `sessions`. Passwords use scrypt (`src/lib/auth/password.ts`); session tokens are random, sent as an HTTP-only cookie and stored only as SHA-256 hashes. `src/lib/auth/access.ts` resolves the cookie into an `AuthSession`. The admin user is seeded from `LARIPULSE_ADMIN_EMAIL` and `LARIPULSE_ADMIN_PASSWORD`.
+Accounts live in `users` and `sessions`. Passwords use scrypt (`src/lib/auth/password.ts`); session tokens are random, sent as an HTTP-only cookie and stored only as SHA-256 hashes. `src/lib/auth/access.ts` resolves the cookie into an `AuthSession` with the user's role.
 
-Anonymous visitors and regular users see BTC and the core widgets. Admins see all markets and widgets. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; visibility is stored in `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
+Each install is one organization with three roles, ranked `viewer < analyst < admin`:
+
+```text
+viewer    dashboard, markets, radar, overlays, Situation Overview (read-only)
+analyst   viewer rights plus a private portfolio and private alerts
+admin     everything, plus users, invites, instance settings, widget visibility
+          and manual collection runs
+```
+
+Services call `requireRole(session, minimum)`, which throws 401 for anonymous visitors and 403 for signed-in users below the required role. Pages use a server-side guard (`src/lib/auth/pageGuard.ts`) that sends a fresh install to `/setup`, visitors to `/login` and under-privileged users back to `/dashboard`. Portfolio and alert queries always filter by `session.userId`.
+
+Market data, widget results and Situation Overview snapshots are shared across the instance. Widget metadata and priority come from `src/lib/widgets/catalog.ts`; admins control visibility through `widget_settings`. Services apply visibility before returning results, so the decision never lives only in React.
+
+See `docs/auth.md` for first-run setup, invites, the public read-only mode and password recovery.
 
 ## Confidence
 
@@ -532,10 +547,17 @@ GET  /api/markets
 GET  /api/markets/overview?symbol=BTCUSDT
 GET  /api/settings/widgets
 PUT  /api/settings/widgets
+POST /api/auth/setup
 POST /api/auth/signup
 POST /api/auth/login
 POST /api/auth/logout
 GET  /api/auth/session
+POST /api/auth/password
+GET  /api/admin/users
+PATCH|DELETE /api/admin/users/:id
+GET|POST /api/admin/invites
+DELETE /api/admin/invites/:id
+GET|PUT /api/admin/settings
 POST /api/collect/run
 ```
 

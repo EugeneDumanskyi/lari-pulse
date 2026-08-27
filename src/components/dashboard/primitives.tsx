@@ -12,6 +12,8 @@ import {
   Grid2X2,
   LineChart,
   LoaderCircle,
+  LogIn,
+  LogOut,
   LucideIcon,
   Menu,
   Radar,
@@ -26,6 +28,7 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LariPulseLogo } from "@/components/brand/LariPulseLogo";
+import { roleLabel, sessionHasRole, useAuthSession } from "@/components/auth/SessionProvider";
 import { cn } from "@/lib/utils/cn";
 
 export function GlassPanel({
@@ -338,24 +341,34 @@ export function AppShell({
   activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "settings";
 }) {
   const router = useRouter();
+  const session = useAuthSession();
+  const isAnalyst = sessionHasRole(session, "analyst");
+  const isSignedIn = session?.isAuthenticated === true;
   const nav: Array<{
     icon: LucideIcon;
     label: string;
     active: boolean;
     disabled?: boolean;
+    hidden?: boolean;
     onClick?: () => void;
   }> = [
     { icon: Grid2X2, label: "Dashboard", active: activeItem === "dashboard", onClick: () => router.push("/dashboard") },
     { icon: BarChart3, label: "Markets", active: activeItem === "markets", onClick: () => router.push("/markets") },
-    { icon: Bell, label: "Alerts", active: activeItem === "alerts", onClick: () => router.push("/alerts") },
+    { icon: Bell, label: "Alerts", active: activeItem === "alerts", hidden: !isAnalyst, onClick: () => router.push("/alerts") },
     { icon: Radar, label: "Radar", active: activeItem === "radar", onClick: () => router.push("/radar") },
-    { icon: WalletCards, label: "Portfolio", active: activeItem === "portfolio", onClick: () => router.push("/portfolio") },
+    { icon: WalletCards, label: "Portfolio", active: activeItem === "portfolio", hidden: !isAnalyst, onClick: () => router.push("/portfolio") },
     { icon: Star, label: "Watchlist", active: false, disabled: true },
     { icon: Search, label: "Scans", active: false, disabled: true },
     { icon: Sparkles, label: "Insights", active: false, disabled: true },
     { icon: Activity, label: "Reports", active: false, disabled: true },
-    { icon: Settings, label: "Settings", active: activeItem === "settings", onClick: () => router.push("/settings") }
+    { icon: Settings, label: "Settings", active: activeItem === "settings", hidden: !isSignedIn, onClick: () => router.push("/settings") }
   ];
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <main className="min-h-screen p-3 text-white md:p-4">
@@ -365,7 +378,7 @@ export function AppShell({
             <LariPulseLogo />
           </div>
           <nav className="space-y-2">
-            {nav.map((item) => (
+            {nav.filter((item) => !item.hidden).map((item) => (
               <SidebarNavItem
                 active={item.active}
                 disabled={item.disabled}
@@ -377,7 +390,36 @@ export function AppShell({
             ))}
           </nav>
           <div className="mt-auto rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm text-white/62">
-            Local market workspace
+            {isSignedIn ? (
+              <>
+                <div className="truncate font-semibold text-white/86" title={session?.email ?? undefined}>
+                  {session?.email}
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-white/46">{roleLabel(session?.role ?? null)}</span>
+                  <button
+                    className="flex items-center gap-1 text-xs font-semibold text-white/62 transition hover:text-white"
+                    onClick={() => void signOut()}
+                    type="button"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Sign out
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-semibold text-white/80">Read-only view</div>
+                <button
+                  className="mt-1 flex items-center gap-1 text-xs font-semibold text-sky-100/80 transition hover:text-white"
+                  onClick={() => router.push("/login")}
+                  type="button"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  Sign in
+                </button>
+              </>
+            )}
           </div>
         </aside>
         {children}

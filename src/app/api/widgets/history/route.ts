@@ -5,16 +5,20 @@ import {
   validateOptionalLimit,
   validateOptionalTimeframe,
   validateSymbol,
+  validateSymbolAccess,
   validateWidgetId
 } from "@/lib/services/apiValidation";
 import { listWidgetHistory } from "@/lib/services/widgetResultService";
+import { getSessionFromRequest } from "@/lib/auth/access";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
+    const session = getSessionFromRequest(request);
     const symbol = validateSymbol(requireQueryParam(params, "symbol"));
+    validateSymbolAccess(symbol, session);
     const widgetId = validateWidgetId(requireQueryParam(params, "widgetId"));
     const timeframe = validateOptionalTimeframe(params.get("timeframe"));
     const limit = validateOptionalLimit(params.get("limit"));

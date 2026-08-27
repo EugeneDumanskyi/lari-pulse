@@ -1,7 +1,7 @@
 import type { WidgetEngine } from "../types";
-import { round } from "../phase1/helpers";
+import { round } from "../crypto/helpers";
 import {
-  DEFAULT_PHASE2_TIMEFRAME,
+  DEFAULT_CROSS_MARKET_TIMEFRAME,
   coverageConfidence,
   getTrendSignal,
   latestUpdatedAt,
@@ -18,7 +18,7 @@ export const oilInflationPressureWidget: WidgetEngine = {
   description: "Detects whether oil movement is adding inflation pressure or market stress.",
   requiredInputs: ["marketContext.assetCandles"],
   async run(context) {
-    const timeframe = context.timeframe ?? DEFAULT_PHASE2_TIMEFRAME;
+    const timeframe = context.timeframe ?? DEFAULT_CROSS_MARKET_TIMEFRAME;
     const oil = getTrendSignal(context, "WTI", timeframe);
     const us10y = getTrendSignal(context, "US10Y", timeframe);
     const dxy = getTrendSignal(context, "DXY", timeframe);

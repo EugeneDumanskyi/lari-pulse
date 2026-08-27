@@ -34,11 +34,11 @@ function candles(count = 40) {
 }
 
 const adminSession = {
-  isAdmin: true,
-  plan: "enterprise",
-  username: "admin",
+  userId: 1,
+  email: "e2e-admin@example.com",
+  role: "admin",
+  isAuthenticated: true,
   accessibleSymbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"],
-  lockedSymbols: [],
   visibleWidgetIds: [
     "trend_strength",
     "multi_timeframe_alignment",
@@ -64,8 +64,7 @@ const symbols = [
     displayName: "Bitcoin",
     providerSymbol: "BTCUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: false
+    isActive: true
   },
   {
     symbol: "NASDAQ100",
@@ -76,14 +75,22 @@ const symbols = [
     displayName: "Nasdaq 100",
     providerSymbol: "NASDAQ100",
     priceUnit: "index",
-    isActive: true,
-    isLocked: false
+    isActive: true
   }
 ];
 
 const marketOverview = {
   symbol: "BTCUSDT",
   timeframe: "1h",
+  interval: "1h",
+  range: "7d",
+  source: {
+    provider: "sqlite",
+    interval: "1h",
+    range: "7d",
+    isFallback: false,
+    warning: null
+  },
   candles: candles(),
   metrics: {
     latestPrice: 100_012.5,
@@ -108,10 +115,10 @@ const runtimeStatus = {
     intervalSeconds: 60,
     lastRunAt: null,
     lastStatus: null,
-    phase2Enabled: false,
-    phase2IntervalSeconds: 86_400,
-    lastPhase2RunAt: null,
-    lastPhase2Status: null
+    macroEnabled: false,
+    macroIntervalSeconds: 86_400,
+    lastMacroRunAt: null,
+    lastMacroStatus: null
   },
   liquidity: {
     enabled: false,
@@ -282,7 +289,7 @@ const crossMarketWidgets = [
       counts: { riskOnCount: 2, riskWeaknessCount: 1, riskOffPressureCount: 2, defensiveBid: true },
       warnings: []
     },
-    sources: [{ source: "internal", type: "phase2_widget", timeframe: "1d", updatedAt: now.toISOString() }],
+    sources: [{ source: "internal", type: "cross_market_widget", timeframe: "1d", updatedAt: now.toISOString() }],
     updatedAt: now.toISOString()
   },
   {
@@ -319,7 +326,7 @@ const crossMarketWidgets = [
       correlations: { btcDxyLatest: -0.6, goldDxyLatest: 0.2 },
       drivers: ["DXY is trending higher", "2 of 2 risk assets are bearish", "Gold is not clearly weak", "BTC/DXY correlation is -0.6"]
     },
-    sources: [{ source: "internal", type: "phase2_widget", timeframe: "1d", updatedAt: now.toISOString() }],
+    sources: [{ source: "internal", type: "cross_market_widget", timeframe: "1d", updatedAt: now.toISOString() }],
     updatedAt: now.toISOString()
   },
   {
@@ -339,7 +346,7 @@ const crossMarketWidgets = [
         { id: "oil_spx", label: "Oil / S&P 500", direction: "left_outperforming", spread: 3.11, latestCorrelation: -0.4, observations: 30 }
       ]
     },
-    sources: [{ source: "internal", type: "phase2_widget", timeframe: "1d", updatedAt: now.toISOString() }],
+    sources: [{ source: "internal", type: "cross_market_widget", timeframe: "1d", updatedAt: now.toISOString() }],
     updatedAt: now.toISOString()
   },
   {
@@ -355,7 +362,7 @@ const crossMarketWidgets = [
     details: {
       drivers: { equitiesWeak: true, pressureRising: true, inflationImpulse: true }
     },
-    sources: [{ source: "internal", type: "phase2_widget", timeframe: "1d", updatedAt: now.toISOString() }],
+    sources: [{ source: "internal", type: "cross_market_widget", timeframe: "1d", updatedAt: now.toISOString() }],
     updatedAt: now.toISOString()
   },
   {
@@ -377,7 +384,7 @@ const crossMarketWidgets = [
         oilVolatility20Pct: 0.54
       }
     },
-    sources: [{ source: "internal", type: "phase2_widget", timeframe: "1d", updatedAt: now.toISOString() }],
+    sources: [{ source: "internal", type: "cross_market_widget", timeframe: "1d", updatedAt: now.toISOString() }],
     updatedAt: now.toISOString()
   }
 ];

@@ -4,7 +4,7 @@ import type {
   WidgetLiquidationSummary,
   WidgetSeverity
 } from "../types";
-import { round } from "../phase1/helpers";
+import { round } from "../crypto/helpers";
 
 export const LIQUIDATION_EVENT_STREAM_STALE_MS = 10 * 60 * 1000;
 

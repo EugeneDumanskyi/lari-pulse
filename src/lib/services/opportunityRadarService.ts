@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { canAccessSymbol, type AuthSession } from "@/lib/auth/access";
+import { canAccessSymbol, requireRole, type AuthSession } from "@/lib/auth/access";
 import { appConfig } from "@/lib/config/appConfig";
 import { collectionTimeframes } from "@/lib/config/timeframes";
 import { getDatabase } from "@/lib/db/client";
@@ -35,7 +35,6 @@ export interface OpportunityRadarResponse {
   scannedSymbols: string[];
   scannedTimeframes: string[];
   generatedAt: string;
-  sessionPlan: AuthSession["plan"];
 }
 
 export interface GetOpportunityRadarOptions {
@@ -224,6 +223,8 @@ function normalizeTimeframes(timeframes?: string[]) {
 }
 
 export async function getOpportunityRadar(options: GetOpportunityRadarOptions): Promise<OpportunityRadarResponse> {
+  requireRole(options.session, "viewer");
+
   if (!options.db) {
     initializeDatabase();
   }
@@ -270,7 +271,6 @@ export async function getOpportunityRadar(options: GetOpportunityRadarOptions): 
     items: ranked,
     scannedSymbols: symbols,
     scannedTimeframes: timeframes,
-    generatedAt: now.toISOString(),
-    sessionPlan: options.session.plan
+    generatedAt: now.toISOString()
   };
 }

@@ -1,8 +1,8 @@
 import { getCorrelationPair } from "../marketContext";
 import type { WidgetEngine } from "../types";
-import { clamp, round } from "../phase1/helpers";
+import { clamp, round } from "../crypto/helpers";
 import {
-  DEFAULT_PHASE2_TIMEFRAME,
+  DEFAULT_CROSS_MARKET_TIMEFRAME,
   coverageConfidence,
   getTrendSignal,
   latestUpdatedAt,
@@ -20,7 +20,7 @@ export const dollarPressureWidget: WidgetEngine = {
   description: "Evaluates whether dollar strength is pressuring crypto, equities, or gold.",
   requiredInputs: ["marketContext.assetCandles", "marketContext.correlations"],
   async run(context) {
-    const timeframe = context.timeframe ?? DEFAULT_PHASE2_TIMEFRAME;
+    const timeframe = context.timeframe ?? DEFAULT_CROSS_MARKET_TIMEFRAME;
     const dxy = getTrendSignal(context, "DXY", timeframe);
     const btc = getTrendSignal(context, "BTCUSDT", timeframe);
     const nasdaq = getTrendSignal(context, "NASDAQ100", timeframe);

@@ -25,10 +25,10 @@ Flow:
 ```text
 Situation Overview build
   + previous persisted overview
-  + enabled alert_rules for access plan/symbol/timeframe
+  + enabled alert_rules for symbol/timeframe (all users)
   -> deterministic alert evaluation
   -> deduped alert_events
-  -> /alerts workspace and /api/alerts/events
+  -> /alerts page and /api/alerts/events
 ```
 
 ## Storage
@@ -38,7 +38,7 @@ SQLite tables:
 - `alert_rules`
 - `alert_events`
 
-Rules are scoped by `access_plan`, `symbol`, and `timeframe`.
+Rules belong to the user who created them and are scoped by `symbol` and `timeframe`. Each event belongs to its rule's owner. Alerts require the `analyst` role; users only ever see their own rules and events.
 
 Events store:
 
@@ -99,7 +99,7 @@ The normal `GET /api/overview/situation` path also evaluates enabled rules for t
 
 ## UI
 
-The Alerts workspace is available at:
+The Alerts page is available at:
 
 ```text
 /alerts
@@ -114,7 +114,7 @@ It shows:
 - manual evaluation for the selected symbol/timeframe
 - recently acknowledged events
 
-The page uses the existing dark glass workspace shell and local access model. Basic users can create rules for accessible Basic markets; Admin/Enterprise users can create rules for all unlocked configured markets.
+The page uses the existing dark glass shell. Analysts and admins can create rules for any configured market; viewers don't see the page.
 
 ## Limitations
 

@@ -97,7 +97,7 @@ export interface NewWidgetSetting {
   isEnabled: boolean;
 }
 
-export type UserRole = "user" | "admin";
+export type UserRole = "admin" | "analyst" | "viewer";
 export type UserStatus = "active" | "disabled";
 
 export interface UserRecord {
@@ -130,11 +130,29 @@ export interface SessionRecord {
   updatedAt: string;
 }
 
+export interface InviteRecord {
+  id: number;
+  tokenHash: string;
+  role: UserRole;
+  email: string | null;
+  createdBy: number | null;
+  expiresAt: string;
+  usedAt: string | null;
+  usedBy: number | null;
+  createdAt: string;
+}
+
+export type SignupMode = "closed" | "open";
+
+export interface AppSettings {
+  signupMode: SignupMode;
+  publicDashboard: boolean;
+}
+
 export interface SituationOverviewRecord {
   id: number;
   symbol: string;
   timeframe: string;
-  accessPlan: string;
   generatedAt: string;
   title: string;
   summary: string;
@@ -166,10 +184,10 @@ export type AlertSeverity = "info" | "warning" | "critical";
 
 export interface AlertRuleRecord {
   id: number;
+  userId: number;
   ruleType: AlertRuleType;
   symbol: string;
   timeframe: string;
-  accessPlan: string;
   title: string;
   description: string;
   severity: AlertSeverity;
@@ -187,9 +205,9 @@ export type NewAlertRule = Omit<AlertRuleRecord, "id" | "createdAt" | "updatedAt
 export interface AlertEventRecord {
   id: number;
   ruleId: number;
+  userId: number;
   symbol: string;
   timeframe: string;
-  accessPlan: string;
   triggerKey: string;
   severity: AlertSeverity;
   title: string;
@@ -207,6 +225,7 @@ export type NewAlertEvent = Omit<AlertEventRecord, "id" | "createdAt" | "updated
 
 export interface PortfolioItemRecord {
   id: number;
+  userId: number;
   symbol: string;
   quantity: number;
   averageCost: number | null;

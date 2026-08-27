@@ -1,6 +1,6 @@
 import type { WidgetEngine } from "../types";
 import {
-  DEFAULT_PHASE2_TIMEFRAME,
+  DEFAULT_CROSS_MARKET_TIMEFRAME,
   coverageConfidence,
   getTrendSignal,
   latestUpdatedAt,
@@ -17,7 +17,7 @@ export const riskRegimeWidget: WidgetEngine = {
   description: "Summarizes the broad cross-market environment into a risk regime state.",
   requiredInputs: ["marketContext.assetCandles"],
   async run(context) {
-    const timeframe = context.timeframe ?? DEFAULT_PHASE2_TIMEFRAME;
+    const timeframe = context.timeframe ?? DEFAULT_CROSS_MARKET_TIMEFRAME;
     const btc = getTrendSignal(context, "BTCUSDT", timeframe);
     const nasdaq = getTrendSignal(context, "NASDAQ100", timeframe);
     const spx = getTrendSignal(context, "SPX", timeframe);

@@ -6,7 +6,7 @@ import { nasdaqCryptoCorrelationWidget } from "./nasdaqCryptoCorrelationWidget";
 import { oilInflationPressureWidget } from "./oilInflationPressureWidget";
 import { riskRegimeWidget } from "./riskRegimeWidget";
 
-export const phase2Widgets = [
+export const crossMarketWidgets = [
   macroRiskPulseWidget,
   dollarPressureWidget,
   goldRiskHedgeWidget,

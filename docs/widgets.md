@@ -19,8 +19,8 @@ Relevant local environment flags:
 ```env
 SCHEDULER_ENABLED=true
 COLLECT_INTERVAL_SECONDS=60
-PHASE2_SCHEDULER_ENABLED=false
-PHASE2_REFRESH_INTERVAL_SECONDS=86400
+MACRO_SCHEDULER_ENABLED=false
+MACRO_REFRESH_INTERVAL_SECONDS=86400
 LIQUIDITY_RUNTIME_ENABLED=false
 LIQUIDATIONS_RETENTION_HOURS=2160
 BINANCE_FUTURES_BASE_URL=https://fapi.binance.com
@@ -142,7 +142,7 @@ source: Binance USD-M Futures public REST endpoints, collected through `POST /ap
 
 method: API collection into SQLite, latest-context service assembly, deterministic widget calculation from `WidgetContext.marketContext.derivatives`.
 
-notes: Implemented as `derivatives_pressure`. It is an Enterprise crypto widget. It flags crowded longs, crowded shorts, leverage cooling, premium, discount, or balanced derivatives pressure. The signal is contextual risk information, not a trading instruction and not account-specific.
+notes: Implemented as `derivatives_pressure`. It flags crowded longs, crowded shorts, leverage cooling, premium, discount, or balanced derivatives pressure. The signal is contextual risk information, not a trading instruction and not account-specific.
 
 ---
 

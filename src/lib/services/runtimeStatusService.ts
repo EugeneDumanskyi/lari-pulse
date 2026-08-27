@@ -45,7 +45,7 @@ export function getRuntimeStatus(db?: Database.Database): RuntimeStatusApi {
   }).at(0) ?? null;
   const latestScheduler = getLatestSourceRuns(database, {
     source: "internal",
-    collectorId: "phase1_scheduler",
+    collectorId: "market_scheduler",
     limit: 1
   }).at(0) ?? null;
   const latestFred = getLatestSourceRuns(database, {

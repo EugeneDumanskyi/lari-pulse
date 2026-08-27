@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { appConfig } from "@/lib/config/appConfig";
 import { runMigrations } from "@/lib/db/migrations";
 import {
   createSession,
@@ -26,7 +27,7 @@ describe("account repository", () => {
     const user = createUser(db, {
       email: "User@Example.com",
       passwordHash: hashPassword("password123"),
-      role: "user",
+      role: "viewer",
       status: "active"
     });
     const session = createSession(db, { userId: user.id, maxAgeSeconds: 3600 });
@@ -47,7 +48,7 @@ describe("account repository", () => {
     const user = createUser(db, {
       email: "expired@example.com",
       passwordHash: hashPassword("password123"),
-      role: "user",
+      role: "viewer",
       status: "active"
     });
     const session = createSession(db, { userId: user.id, maxAgeSeconds: -60 });
@@ -57,14 +58,26 @@ describe("account repository", () => {
     assert.equal((db.prepare("SELECT COUNT(*) AS count FROM sessions").get() as { count: number }).count, 0);
   });
 
-  it("seeds the configured admin user once", () => {
+  it("seeds the env admin only when both variables are set and no users exist", () => {
     const db = memoryDb();
-    const admin = seedAdminUser(db);
-    const again = seedAdminUser(db);
+    const original = { email: appConfig.adminEmail, password: appConfig.adminPassword };
 
-    assert.equal(admin.role, "admin");
-    assert.equal(admin.status, "active");
-    assert.equal(again.id, admin.id);
-    assert.equal(findUserByEmail(db, admin.email)?.id, admin.id);
+    try {
+      appConfig.adminEmail = null;
+      appConfig.adminPassword = null;
+      assert.equal(seedAdminUser(db), null);
+
+      appConfig.adminEmail = "Ops@Example.com";
+      appConfig.adminPassword = "seeded-password";
+      const admin = seedAdminUser(db);
+
+      assert.equal(admin?.role, "admin");
+      assert.equal(admin?.email, "ops@example.com");
+      assert.equal(seedAdminUser(db), null);
+      assert.equal(findUserByEmail(db, "ops@example.com")?.id, admin?.id);
+    } finally {
+      appConfig.adminEmail = original.email;
+      appConfig.adminPassword = original.password;
+    }
   });
 });

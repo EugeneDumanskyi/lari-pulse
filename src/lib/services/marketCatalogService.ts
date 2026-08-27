@@ -1,13 +1,13 @@
 import type Database from "better-sqlite3";
 import type { MarketsApi, MarketSummaryApi } from "@/lib/api/types";
 import type { AuthSession } from "@/lib/auth/access";
-import { authSessionApi, canAccessSymbol } from "@/lib/auth/access";
-import { defaultSymbols, phase2Symbols, type AppSymbolConfig } from "@/lib/config/symbols";
+import { authSessionApi, requireRole } from "@/lib/auth/access";
+import { defaultSymbols, crossMarketSymbols, type AppSymbolConfig } from "@/lib/config/symbols";
 import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import { getMarketOverview } from "./marketDataService";
 
-const marketConfigs = [...defaultSymbols, ...phase2Symbols];
+const marketConfigs = [...defaultSymbols, ...crossMarketSymbols];
 const marketConfigBySymbol = new Map(marketConfigs.map((config) => [config.symbol, config]));
 
 function defaultTimeframeFor(config: AppSymbolConfig) {
@@ -52,7 +52,7 @@ function sourceNote(config: AppSymbolConfig) {
   return null;
 }
 
-function marketSummary(config: AppSymbolConfig, session: AuthSession, db: Database.Database): MarketSummaryApi {
+function marketSummary(config: AppSymbolConfig, db: Database.Database): MarketSummaryApi {
   const timeframe = defaultTimeframeFor(config);
   const overview = getMarketOverview({ symbol: config.symbol, timeframe, limit: 160 }, db);
 
@@ -70,18 +70,19 @@ function marketSummary(config: AppSymbolConfig, session: AuthSession, db: Databa
     candleCount: overview.metrics.candleCount,
     updatedAt: overview.metrics.updatedAt,
     isStale: overview.metrics.isStale,
-    isLocked: !canAccessSymbol(session, config.symbol),
     sourceNote: sourceNote(config)
   };
 }
 
 export function getMarkets(session: AuthSession, db?: Database.Database): MarketsApi {
+  requireRole(session, "viewer");
+
   if (!db) {
     initializeDatabase();
   }
 
   const database = db ?? getDatabase();
-  const markets = marketConfigs.map((config) => marketSummary(config, session, database));
+  const markets = marketConfigs.map((config) => marketSummary(config, database));
 
   return {
     markets,

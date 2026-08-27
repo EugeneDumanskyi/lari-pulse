@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { validateWidgetResult } from "./runner";
 import { liquidityWidgets, liquidationsWidget } from "./liquidity";
-import { defaultVisibleWidgetIdsForPlan, widgetCatalog } from "./catalog";
+import { widgetCatalog } from "./catalog";
 import type { WidgetLiquidationSummary } from "./types";
 
 const now = new Date("2026-05-26T10:00:00.000Z");
@@ -138,7 +138,7 @@ test("liquidationsWidget explains empty local history as collecting from now", a
   assert.match(result.summary, /collecting from now/);
 });
 
-test("catalog includes liquidity widgets as Enterprise crypto widgets in priority order", () => {
+test("catalog includes liquidity widgets as crypto widgets in priority order", () => {
   const cryptoIds = widgetCatalog
     .filter((item) => item.group === "crypto")
     .sort((left, right) => left.priority - right.priority)
@@ -153,6 +153,5 @@ test("catalog includes liquidity widgets as Enterprise crypto widgets in priorit
     "support_resistance_pressure",
     "volume_confirmation"
   ]);
-  assert.equal(widgetCatalog.find((item) => item.widgetId === "liquidations")?.planTier, "enterprise");
-  assert.deepEqual(defaultVisibleWidgetIdsForPlan("basic"), ["trend_strength", "momentum_exhaustion"]);
+  assert.equal(widgetCatalog.find((item) => item.widgetId === "liquidations")?.defaultEnabled, true);
 });

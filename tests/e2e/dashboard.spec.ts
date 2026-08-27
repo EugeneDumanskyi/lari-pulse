@@ -108,13 +108,13 @@ for (const route of routes) {
   });
 }
 
-test("dashboard shows key Basic widgets and opens widget details", async ({ page }, testInfo) => {
+test("dashboard shows key widgets and opens widget details", async ({ page }, testInfo) => {
   await page.goto("/dashboard");
 
   await expect(page.getByRole("heading", { name: "LariPulse" })).toBeVisible();
-  await expect(page.getByText("Trend Strength")).toBeVisible();
-  await expect(page.getByText("Momentum Exhaustion")).toBeVisible();
-  await expect(page.getByText("Widget Results")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Trend Strength" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Momentum Exhaustion" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Widget Results", exact: true })).toBeVisible();
   await expect(page.getByText("BTC/USDT Price")).toBeVisible();
 
   await page.getByRole("button", { name: "More details" }).first().click();

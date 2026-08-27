@@ -11,7 +11,7 @@ Implemented:
 - `POST /api/portfolio`.
 - `PUT /api/portfolio/:id`.
 - `DELETE /api/portfolio/:id`.
-- `/portfolio` workspace.
+- `/portfolio` page.
 - Dashboard Situation Overview callout when the selected symbol is held or watched.
 
 Out of scope:
@@ -49,7 +49,7 @@ Quantity can be `0`; those rows are treated as watched assets.
 - strongest current driver
 - active watch conditions
 
-The service applies current local access rules before returning rows. Basic mode only sees BTCUSDT context. Admin/Enterprise mode can use all accessible configured markets.
+Portfolios require the `analyst` role and are private: every item carries a `user_id`, and the service only returns and changes the signed-in user's rows.
 
 ## API Shape
 
@@ -68,7 +68,7 @@ Returned context includes item-level enrichment plus a summary with total market
 
 ## UI
 
-The `/portfolio` workspace includes:
+The `/portfolio` page includes:
 
 - local add/edit/delete controls
 - market value and P/L summary
@@ -78,7 +78,7 @@ The `/portfolio` workspace includes:
 - selected-item Situation Overview context
 - selected-item watch conditions
 
-The dashboard Situation Overview card displays compact portfolio context for the selected symbol when that symbol exists in `portfolio_items`.
+The dashboard Situation Overview card displays compact portfolio context for the selected symbol when that symbol is in the signed-in user's portfolio.
 
 ## Limitations
 
