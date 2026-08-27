@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { AccessPlan, AuthSession } from "@/lib/auth/access";
+import { requireUser, type AuthSession } from "@/lib/auth/access";
 import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import {
@@ -31,7 +31,6 @@ export interface AlertRuleApi {
   ruleType: AlertRuleType;
   symbol: string;
   timeframe: string;
-  accessPlan: string;
   title: string;
   description: string;
   severity: AlertSeverity;
@@ -49,7 +48,6 @@ export interface AlertEventApi {
   ruleId: number;
   symbol: string;
   timeframe: string;
-  accessPlan: string;
   triggerKey: string;
   severity: AlertSeverity;
   title: string;
@@ -81,7 +79,6 @@ interface EvaluateAlertRulesOptions {
   db?: Database.Database;
   overview: SituationOverview;
   previousOverview?: SituationOverview | null;
-  accessPlan: AccessPlan;
   overviewId?: number | null;
 }
 
@@ -113,13 +110,15 @@ function parseMetadata(value: string): Record<string, unknown> {
 }
 
 function toRuleApi(rule: AlertRuleRecord): AlertRuleApi {
-  return { ...rule };
+  const { userId: _userId, ...api } = rule;
+  return api;
 }
 
 function toEventApi(event: AlertEventRecord): AlertEventApi {
+  const { userId: _userId, metadataJson, ...api } = event;
   return {
-    ...event,
-    metadata: parseMetadata(event.metadataJson)
+    ...api,
+    metadata: parseMetadata(metadataJson)
   };
 }
 
@@ -157,7 +156,7 @@ function defaultDescription(input: AlertRuleInput) {
   return `Trigger when ${defaultTitle(input.ruleType).toLowerCase()}.`;
 }
 
-function validateRuleInput(input: AlertRuleInput, accessPlan: AccessPlan): NewAlertRule {
+function validateRuleInput(input: AlertRuleInput, userId: number): NewAlertRule {
   if (!allowedRuleTypes.has(input.ruleType)) {
     throw new ApiInputError(`Unsupported alert rule type: ${input.ruleType}`);
   }
@@ -183,10 +182,10 @@ function validateRuleInput(input: AlertRuleInput, accessPlan: AccessPlan): NewAl
   }
 
   return {
+    userId,
     ruleType: input.ruleType,
     symbol: input.symbol,
     timeframe: input.timeframe,
-    accessPlan,
     title: input.title?.trim() || defaultTitle(input.ruleType),
     description: input.description?.trim() || defaultDescription(input),
     severity,
@@ -325,14 +324,26 @@ function evaluateRule(
   }];
 }
 
+function ownedRule(db: Database.Database, id: number, userId: number) {
+  const rule = getAlertRuleById(db, id);
+
+  if (!rule || rule.userId !== userId) {
+    throw new ApiInputError("Alert rule not found", 404);
+  }
+
+  return rule;
+}
+
 export function listRulesForSession(options: { session: AuthSession; db?: Database.Database }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  return listAlertRules(db, { accessPlan: options.session.plan }).map(toRuleApi);
+  return listAlertRules(db, { userId: user.userId }).map(toRuleApi);
 }
 
 export function createRuleForSession(options: { session: AuthSession; input: AlertRuleInput; db?: Database.Database }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  const rule = validateRuleInput(options.input, options.session.plan);
+  const rule = validateRuleInput(options.input, user.userId);
   const id = insertAlertRule(db, rule);
   const inserted = getAlertRuleById(db, id);
 
@@ -349,12 +360,9 @@ export function updateRuleForSession(options: {
   input: Partial<AlertRuleInput>;
   db?: Database.Database;
 }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  const current = getAlertRuleById(db, options.id);
-
-  if (!current || current.accessPlan !== options.session.plan) {
-    throw new ApiInputError("Alert rule not found", 404);
-  }
+  const current = ownedRule(db, options.id, user.userId);
 
   const nextInput: AlertRuleInput = {
     ruleType: options.input.ruleType ?? current.ruleType,
@@ -369,7 +377,7 @@ export function updateRuleForSession(options: {
     thresholdValue: options.input.thresholdValue === undefined ? current.thresholdValue : options.input.thresholdValue,
     thresholdDirection: options.input.thresholdDirection === undefined ? current.thresholdDirection : options.input.thresholdDirection
   };
-  const patch = validateRuleInput(nextInput, options.session.plan);
+  const patch = validateRuleInput(nextInput, user.userId);
   const updated = updateAlertRule(db, options.id, patch);
 
   if (!updated) {
@@ -380,12 +388,9 @@ export function updateRuleForSession(options: {
 }
 
 export function deleteRuleForSession(options: { session: AuthSession; id: number; db?: Database.Database }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  const current = getAlertRuleById(db, options.id);
-
-  if (!current || current.accessPlan !== options.session.plan) {
-    throw new ApiInputError("Alert rule not found", 404);
-  }
+  ownedRule(db, options.id, user.userId);
 
   return deleteAlertRule(db, options.id);
 }
@@ -396,19 +401,21 @@ export function listEventsForSession(options: {
   limit?: number;
   db?: Database.Database;
 }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
   return listAlertEvents(db, {
-    accessPlan: options.session.plan,
+    userId: user.userId,
     includeAcknowledged: options.includeAcknowledged,
     limit: options.limit
   }).map(toEventApi);
 }
 
 export function acknowledgeEventForSession(options: { session: AuthSession; id: number; db?: Database.Database }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
   const current = getAlertEventById(db, options.id);
 
-  if (!current || current.accessPlan !== options.session.plan) {
+  if (!current || current.userId !== user.userId) {
     throw new ApiInputError("Alert event not found", 404);
   }
 
@@ -421,15 +428,18 @@ export function acknowledgeEventForSession(options: { session: AuthSession; id: 
   return toEventApi(event);
 }
 
+/**
+ * Situation Overviews are instance-wide, so every user's enabled rules for the
+ * symbol/timeframe are evaluated. Each event belongs to the owner of its rule.
+ */
 export function evaluateAlertRulesForOverview(options: EvaluateAlertRulesOptions) {
   const db = ensureDatabase(options.db);
   const rules = listAlertRules(db, {
-    accessPlan: options.accessPlan,
     symbol: options.overview.symbol,
     timeframe: options.overview.timeframe,
     enabledOnly: true
   });
-  const created: AlertEventApi[] = [];
+  const created: AlertEventRecord[] = [];
 
   for (const rule of rules) {
     for (const pending of evaluateRule(rule, options.overview, options.previousOverview)) {
@@ -446,9 +456,9 @@ export function evaluateAlertRulesForOverview(options: EvaluateAlertRulesOptions
 
       const id = insertAlertEvent(db, {
         ruleId: rule.id,
+        userId: rule.userId,
         symbol: options.overview.symbol,
         timeframe: options.overview.timeframe,
-        accessPlan: options.accessPlan,
         triggerKey: pending.triggerKey,
         severity: rule.severity,
         title: pending.title,
@@ -458,17 +468,14 @@ export function evaluateAlertRulesForOverview(options: EvaluateAlertRulesOptions
         overviewId: options.overviewId ?? null,
         metadataJson: JSON.stringify(pending.metadata)
       });
-      const event = listAlertEvents(db, {
-        accessPlan: options.accessPlan,
-        includeAcknowledged: true,
-        limit: 1
-      }).find((item) => item.id === id);
+      const event = getAlertEventById(db, id);
 
       if (event) {
-        created.push(toEventApi(event));
+        created.push(event);
       }
     }
   }
 
   return created;
 }
+

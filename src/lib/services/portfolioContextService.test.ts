@@ -1,21 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import Database from "better-sqlite3";
-import { createAdminSession, getSessionFromToken } from "@/lib/auth/access";
-import { runMigrations } from "@/lib/db/migrations";
+import type Database from "better-sqlite3";
+import { AccessError } from "@/lib/auth/access";
+import { createTestDatabase, createTestSession } from "@/lib/auth/testing";
 import { upsertCandles } from "@/lib/db/repositories/candlesRepository";
 import { insertPortfolioItem } from "@/lib/db/repositories/portfolioRepository";
 import { insertSituationOverview } from "@/lib/db/repositories/situationOverviewRepository";
+import { ApiInputError } from "./apiValidation";
 import {
   createPortfolioItemForSession,
-  getPortfolioContext
+  deletePortfolioItemForSession,
+  getPortfolioCalloutForSymbol,
+  getPortfolioContext,
+  updatePortfolioItemForSession
 } from "./portfolioContextService";
-
-function createMemoryDatabase() {
-  const db = new Database(":memory:");
-  runMigrations(db);
-  return db;
-}
 
 function seedCandle(db: Database.Database, symbol: string, close: number) {
   upsertCandles(db, [{
@@ -32,11 +30,10 @@ function seedCandle(db: Database.Database, symbol: string, close: number) {
   }]);
 }
 
-function seedSituation(db: Database.Database, symbol: string, accessPlan = "enterprise") {
+function seedSituation(db: Database.Database, symbol: string) {
   insertSituationOverview(db, {
     symbol,
     timeframe: "1h",
-    accessPlan,
     generatedAt: "2026-06-01T10:00:00.000Z",
     title: `${symbol} elevated risk`,
     summary: "Liquidity and trend are in conflict.",
@@ -71,13 +68,14 @@ function seedSituation(db: Database.Database, symbol: string, accessPlan = "ente
 
 describe("portfolio context service", () => {
   it("enriches local holdings with price, P/L, concentration, and situation context", () => {
-    const db = createMemoryDatabase();
-    const session = createAdminSession();
+    const db = createTestDatabase();
+    const session = createTestSession(db, "analyst");
     seedCandle(db, "BTCUSDT", 100000);
     seedCandle(db, "ETHUSDT", 4000);
     seedSituation(db, "BTCUSDT");
 
     insertPortfolioItem(db, {
+      userId: session.userId!,
       symbol: "BTCUSDT",
       quantity: 0.5,
       averageCost: 80000,
@@ -87,6 +85,7 @@ describe("portfolio context service", () => {
       includeInRisk: true
     });
     insertPortfolioItem(db, {
+      userId: session.userId!,
       symbol: "ETHUSDT",
       quantity: 0,
       averageCost: null,
@@ -107,42 +106,38 @@ describe("portfolio context service", () => {
     assert.equal(context.items[0].watchConditions[0].label, "Support loss");
   });
 
-  it("scopes portfolio reads and writes to the current local access level", () => {
-    const db = createMemoryDatabase();
-    const basicSession = getSessionFromToken(undefined);
+  it("keeps each analyst's portfolio private", () => {
+    const db = createTestDatabase();
+    const owner = createTestSession(db, "analyst", "owner@example.com");
+    const other = createTestSession(db, "analyst", "other@example.com");
+    const admin = createTestSession(db, "admin");
+    const item = createPortfolioItemForSession({ session: owner, db, input: { symbol: "ethusdt", quantity: 1 } });
 
-    insertPortfolioItem(db, {
-      symbol: "BTCUSDT",
-      quantity: 1,
-      averageCost: null,
-      quoteCurrency: "USDT",
-      label: null,
-      notes: null,
-      includeInRisk: true
-    });
-    insertPortfolioItem(db, {
-      symbol: "ETHUSDT",
-      quantity: 1,
-      averageCost: null,
-      quoteCurrency: "USDT",
-      label: null,
-      notes: null,
-      includeInRisk: true
-    });
+    assert.equal(item.symbol, "ETHUSDT");
+    assert.deepEqual(getPortfolioContext({ session: owner, db }).items.map((entry) => entry.symbol), ["ETHUSDT"]);
+    assert.equal(getPortfolioContext({ session: other, db }).items.length, 0);
+    assert.equal(getPortfolioContext({ session: admin, db }).items.length, 0);
+    assert.equal(getPortfolioCalloutForSymbol({ session: owner, symbol: "ETHUSDT", db })?.quantity, 1);
+    assert.equal(getPortfolioCalloutForSymbol({ session: other, symbol: "ETHUSDT", db }), null);
 
-    const context = getPortfolioContext({ session: basicSession, db });
-    assert.deepEqual(context.items.map((item) => item.symbol), ["BTCUSDT"]);
+    assert.throws(() => updatePortfolioItemForSession({ session: other, db, id: item.id, input: { quantity: 5 } }), ApiInputError);
+    assert.throws(() => deletePortfolioItemForSession({ session: other, db, id: item.id }), ApiInputError);
+    assert.equal(deletePortfolioItemForSession({ session: owner, db, id: item.id }), true);
+  });
 
+  it("requires the analyst role and a configured symbol", () => {
+    const db = createTestDatabase();
+    const viewer = createTestSession(db, "viewer");
+    const analyst = createTestSession(db, "analyst");
+
+    assert.throws(() => getPortfolioContext({ session: viewer, db }), AccessError);
     assert.throws(
-      () => createPortfolioItemForSession({
-        session: basicSession,
-        db,
-        input: {
-          symbol: "ETHUSDT",
-          quantity: 1
-        }
-      }),
-      /locked/
+      () => createPortfolioItemForSession({ session: viewer, db, input: { symbol: "BTCUSDT", quantity: 1 } }),
+      AccessError
+    );
+    assert.throws(
+      () => createPortfolioItemForSession({ session: analyst, db, input: { symbol: "DOGEUSDT", quantity: 1 } }),
+      /Unsupported symbol/
     );
   });
 });

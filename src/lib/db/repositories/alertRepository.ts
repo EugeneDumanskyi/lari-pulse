@@ -8,10 +8,10 @@ import type {
 
 interface AlertRuleDbRow {
   id: number;
+  user_id: number;
   rule_type: AlertRuleRecord["ruleType"];
   symbol: string;
   timeframe: string;
-  access_plan: string;
   title: string;
   description: string;
   severity: AlertRuleRecord["severity"];
@@ -27,9 +27,9 @@ interface AlertRuleDbRow {
 interface AlertEventDbRow {
   id: number;
   rule_id: number;
+  user_id: number;
   symbol: string;
   timeframe: string;
-  access_plan: string;
   trigger_key: string;
   severity: AlertEventRecord["severity"];
   title: string;
@@ -46,10 +46,10 @@ interface AlertEventDbRow {
 function mapAlertRule(row: AlertRuleDbRow): AlertRuleRecord {
   return {
     id: row.id,
+    userId: row.user_id,
     ruleType: row.rule_type,
     symbol: row.symbol,
     timeframe: row.timeframe,
-    accessPlan: row.access_plan,
     title: row.title,
     description: row.description,
     severity: row.severity,
@@ -67,9 +67,9 @@ function mapAlertEvent(row: AlertEventDbRow): AlertEventRecord {
   return {
     id: row.id,
     ruleId: row.rule_id,
+    userId: row.user_id,
     symbol: row.symbol,
     timeframe: row.timeframe,
-    accessPlan: row.access_plan,
     triggerKey: row.trigger_key,
     severity: row.severity,
     title: row.title,
@@ -89,10 +89,10 @@ export function insertAlertRule(db: Database.Database, rule: NewAlertRule) {
     .prepare(
       `
       INSERT INTO alert_rules (
+        user_id,
         rule_type,
         symbol,
         timeframe,
-        access_plan,
         title,
         description,
         severity,
@@ -103,10 +103,10 @@ export function insertAlertRule(db: Database.Database, rule: NewAlertRule) {
         threshold_direction
       )
       VALUES (
+        @userId,
         @ruleType,
         @symbol,
         @timeframe,
-        @accessPlan,
         @title,
         @description,
         @severity,
@@ -145,7 +145,6 @@ export function updateAlertRule(
         rule_type = @ruleType,
         symbol = @symbol,
         timeframe = @timeframe,
-        access_plan = @accessPlan,
         title = @title,
         description = @description,
         severity = @severity,
@@ -163,7 +162,6 @@ export function updateAlertRule(
       ruleType: patch.ruleType ?? current.ruleType,
       symbol: patch.symbol ?? current.symbol,
       timeframe: patch.timeframe ?? current.timeframe,
-      accessPlan: patch.accessPlan ?? current.accessPlan,
       title: patch.title ?? current.title,
       description: patch.description ?? current.description,
       severity: patch.severity ?? current.severity,
@@ -189,14 +187,14 @@ export function getAlertRuleById(db: Database.Database, id: number) {
 
 export function listAlertRules(
   db: Database.Database,
-  filters: { accessPlan: string; symbol?: string; timeframe?: string; enabledOnly?: boolean }
+  filters: { userId?: number; symbol?: string; timeframe?: string; enabledOnly?: boolean }
 ) {
   const rows = db
     .prepare(
       `
       SELECT *
       FROM alert_rules
-      WHERE access_plan = @accessPlan
+      WHERE (@userId IS NULL OR user_id = @userId)
         AND (@symbol IS NULL OR symbol = @symbol)
         AND (@timeframe IS NULL OR timeframe = @timeframe)
         AND (@enabledOnly = 0 OR is_enabled = 1)
@@ -204,7 +202,7 @@ export function listAlertRules(
     `
     )
     .all({
-      accessPlan: filters.accessPlan,
+      userId: filters.userId ?? null,
       symbol: filters.symbol ?? null,
       timeframe: filters.timeframe ?? null,
       enabledOnly: filters.enabledOnly ? 1 : 0
@@ -219,9 +217,9 @@ export function insertAlertEvent(db: Database.Database, event: NewAlertEvent) {
       `
       INSERT INTO alert_events (
         rule_id,
+        user_id,
         symbol,
         timeframe,
-        access_plan,
         trigger_key,
         severity,
         title,
@@ -233,9 +231,9 @@ export function insertAlertEvent(db: Database.Database, event: NewAlertEvent) {
       )
       VALUES (
         @ruleId,
+        @userId,
         @symbol,
         @timeframe,
-        @accessPlan,
         @triggerKey,
         @severity,
         @title,
@@ -277,21 +275,21 @@ export function findOpenAlertEvent(
 
 export function listAlertEvents(
   db: Database.Database,
-  filters: { accessPlan: string; includeAcknowledged?: boolean; limit?: number }
+  filters: { userId: number; includeAcknowledged?: boolean; limit?: number }
 ) {
   const rows = db
     .prepare(
       `
       SELECT *
       FROM alert_events
-      WHERE access_plan = @accessPlan
+      WHERE user_id = @userId
         AND (@includeAcknowledged = 1 OR acknowledged_at IS NULL)
       ORDER BY created_at DESC, id DESC
       LIMIT @limit
     `
     )
     .all({
-      accessPlan: filters.accessPlan,
+      userId: filters.userId,
       includeAcknowledged: filters.includeAcknowledged ? 1 : 0,
       limit: filters.limit ?? 100
     }) as AlertEventDbRow[];

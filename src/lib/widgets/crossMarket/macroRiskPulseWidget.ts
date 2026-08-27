@@ -2,7 +2,7 @@ import { movingAverage } from "@/lib/indicators";
 import type { CandleRecord } from "@/lib/db/types";
 import { getAssetCandles, getCorrelationPair, listCorrelationPairs } from "../marketContext";
 import type { SourceRef, WidgetEngine, WidgetSeverity } from "../types";
-import { clamp, round } from "../phase1/helpers";
+import { clamp, round } from "../crypto/helpers";
 
 type MacroAssetSymbol = "BTCUSDT" | "DXY" | "US10Y" | "NASDAQ100" | "SPX" | "XAUUSD" | "WTI";
 type MacroTrend = "bullish" | "bearish" | "mixed" | "insufficient_data";

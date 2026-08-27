@@ -1,9 +1,9 @@
 import { movingAverage } from "@/lib/indicators";
 import type { CandleRecord } from "@/lib/db/types";
 import type { SourceRef, WidgetContext, WidgetSeverity } from "../types";
-import { clamp, round } from "../phase1/helpers";
+import { clamp, round } from "../crypto/helpers";
 
-export type Phase2AssetSymbol =
+export type CrossMarketAssetSymbol =
   | "BTCUSDT"
   | "ETHUSDT"
   | "SOLUSDT"
@@ -15,12 +15,12 @@ export type Phase2AssetSymbol =
   | "WTI"
   | "VIX";
 
-export type Phase2Trend = "bullish" | "bearish" | "mixed" | "insufficient_data";
+export type CrossMarketTrend = "bullish" | "bearish" | "mixed" | "insufficient_data";
 
-export interface Phase2TrendSignal {
-  symbol: Phase2AssetSymbol;
+export interface CrossMarketTrendSignal {
+  symbol: CrossMarketAssetSymbol;
   label: string;
-  trend: Phase2Trend;
+  trend: CrossMarketTrend;
   latestClose: number | null;
   ma5: number | null;
   ma20: number | null;
@@ -31,10 +31,10 @@ export interface Phase2TrendSignal {
   source: string | null;
 }
 
-export const DEFAULT_PHASE2_TIMEFRAME = "1d";
-export const PHASE2_REQUIRED_CANDLES = 20;
+export const DEFAULT_CROSS_MARKET_TIMEFRAME = "1d";
+export const CROSS_MARKET_REQUIRED_CANDLES = 20;
 
-export const PHASE2_LABELS: Record<Phase2AssetSymbol, string> = {
+export const CROSS_MARKET_LABELS: Record<CrossMarketAssetSymbol, string> = {
   BTCUSDT: "BTC",
   ETHUSDT: "ETH",
   SOLUSDT: "SOL",
@@ -69,14 +69,14 @@ function closeToCloseVolatility(candles: CandleRecord[], window = 20) {
   return Math.sqrt(variance) * 100;
 }
 
-export function analyzePhase2Trend(
-  symbol: Phase2AssetSymbol,
+export function analyzeCrossMarketTrend(
+  symbol: CrossMarketAssetSymbol,
   candles: CandleRecord[],
-  label = PHASE2_LABELS[symbol]
-): Phase2TrendSignal {
+  label = CROSS_MARKET_LABELS[symbol]
+): CrossMarketTrendSignal {
   const latest = latestCandle(candles);
 
-  if (candles.length < PHASE2_REQUIRED_CANDLES || !latest) {
+  if (candles.length < CROSS_MARKET_REQUIRED_CANDLES || !latest) {
     return {
       symbol,
       label,
@@ -96,7 +96,7 @@ export function analyzePhase2Trend(
   const ma5 = movingAverage(candles, 5)!;
   const ma20 = movingAverage(candles, 20)!;
   const change5Pct = previous5 ? ((latest.close - previous5.close) / previous5.close) * 100 : 0;
-  let trend: Phase2Trend = "mixed";
+  let trend: CrossMarketTrend = "mixed";
 
   if (latest.close > ma20 && ma5 > ma20 && change5Pct > 0) {
     trend = "bullish";
@@ -119,7 +119,7 @@ export function analyzePhase2Trend(
   };
 }
 
-export function trendValue(trend: Phase2Trend) {
+export function trendValue(trend: CrossMarketTrend) {
   if (trend === "bullish") {
     return 1;
   }
@@ -131,7 +131,7 @@ export function trendValue(trend: Phase2Trend) {
   return 0;
 }
 
-export function signalDetails(signal: Phase2TrendSignal) {
+export function signalDetails(signal: CrossMarketTrendSignal) {
   return {
     label: signal.label,
     trend: signal.trend,
@@ -144,7 +144,7 @@ export function signalDetails(signal: Phase2TrendSignal) {
   };
 }
 
-export function latestUpdatedAt(signals: Phase2TrendSignal[], fallback: Date) {
+export function latestUpdatedAt(signals: CrossMarketTrendSignal[], fallback: Date) {
   return (
     signals
       .map((signal) => signal.updatedAt)
@@ -154,14 +154,14 @@ export function latestUpdatedAt(signals: Phase2TrendSignal[], fallback: Date) {
   );
 }
 
-export function sourceRefs(signals: Phase2TrendSignal[], updatedAt: string): SourceRef[] {
+export function sourceRefs(signals: CrossMarketTrendSignal[], updatedAt: string): SourceRef[] {
   const candleSources = signals
     .filter((signal) => signal.updatedAt && signal.source)
     .map((signal) => ({
       source: signal.source!,
       type: "ohlcv",
       symbol: signal.symbol,
-      timeframe: DEFAULT_PHASE2_TIMEFRAME,
+      timeframe: DEFAULT_CROSS_MARKET_TIMEFRAME,
       updatedAt: signal.updatedAt!
     }));
 
@@ -169,20 +169,20 @@ export function sourceRefs(signals: Phase2TrendSignal[], updatedAt: string): Sou
     ...candleSources,
     {
       source: "internal",
-      type: "phase2_widget",
-      timeframe: DEFAULT_PHASE2_TIMEFRAME,
+      type: "cross_market_widget",
+      timeframe: DEFAULT_CROSS_MARKET_TIMEFRAME,
       updatedAt
     }
   ];
 }
 
-export function missingWarnings(signals: Phase2TrendSignal[]) {
+export function missingWarnings(signals: CrossMarketTrendSignal[]) {
   return signals
     .filter((signal) => signal.trend === "insufficient_data")
-    .map((signal) => `${signal.symbol} has ${signal.candleCount} candles; ${PHASE2_REQUIRED_CANDLES} required`);
+    .map((signal) => `${signal.symbol} has ${signal.candleCount} candles; ${CROSS_MARKET_REQUIRED_CANDLES} required`);
 }
 
-export function coverageConfidence(signals: Phase2TrendSignal[], conflictPenalty = 0) {
+export function coverageConfidence(signals: CrossMarketTrendSignal[], conflictPenalty = 0) {
   const coverage = signals.filter((signal) => signal.trend !== "insufficient_data").length / signals.length;
 
   return round(clamp(0.3 + coverage * 0.45 - conflictPenalty, 0.2, 0.86), 2);
@@ -202,12 +202,12 @@ export function scoreSeverity(score: number): WidgetSeverity {
 
 export function getTrendSignal(
   context: WidgetContext,
-  symbol: Phase2AssetSymbol,
+  symbol: CrossMarketAssetSymbol,
   timeframe: string
 ) {
   const candles = context.marketContext?.assetCandles?.[symbol]?.[timeframe] ?? [];
 
-  return analyzePhase2Trend(symbol, candles);
+  return analyzeCrossMarketTrend(symbol, candles);
 }
 
 export function normalizedScore(raw: number) {

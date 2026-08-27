@@ -1,7 +1,7 @@
 import { appConfig } from "@/lib/config/appConfig";
 import { widgetRegistry } from "@/lib/widgets/registry";
 import type { AuthSession } from "@/lib/auth/access";
-import { canAccessSymbol } from "@/lib/auth/access";
+import { canAccessSymbol, requireRole } from "@/lib/auth/access";
 
 export class ApiInputError extends Error {
   readonly statusCode: number;
@@ -74,8 +74,10 @@ export function validateWidgetId(widgetId: string) {
 }
 
 export function validateSymbolAccess(symbol: string, session: AuthSession) {
+  requireRole(session, "viewer");
+
   if (!canAccessSymbol(session, symbol)) {
-    throw new ApiInputError(`Symbol is locked for the current access level: ${symbol}`);
+    throw new ApiInputError(`Unsupported symbol: ${symbol}`);
   }
 
   return symbol;
@@ -93,4 +95,14 @@ export function validateOptionalLimit(limitValue: string | null, defaultLimit = 
   }
 
   return limit;
+}
+
+export function parseRouteId(value: string, label = "id") {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) {
+    throw new ApiInputError(`Invalid ${label}`);
+  }
+
+  return id;
 }

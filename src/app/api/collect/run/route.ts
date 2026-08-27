@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequest, canAccessSymbol } from "@/lib/auth/access";
-import { runPhase1Refresh } from "@/lib/services/phase1RefreshService";
+import { AccessError, getSessionFromRequest, requireRole } from "@/lib/auth/access";
+import { runCryptoRefresh } from "@/lib/services/cryptoRefreshService";
 
 export const runtime = "nodejs";
 
@@ -59,21 +59,11 @@ async function readOptionalJson(request: NextRequest): Promise<CollectRunRequest
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromRequest(request);
+    requireRole(getSessionFromRequest(request), "admin");
     const body = await readOptionalJson(request);
     const symbols = asOptionalStringArray(body.symbols, "symbols");
 
-    if (symbols?.some((symbol) => !canAccessSymbol(session, symbol.toUpperCase()))) {
-      return NextResponse.json(
-        {
-          status: "error",
-          message: "One or more symbols are locked for the current access level"
-        },
-        { status: 403 }
-      );
-    }
-
-    const result = await runPhase1Refresh({
+    const result = await runCryptoRefresh({
       symbols,
       timeframes: asOptionalStringArray(body.timeframes, "timeframes"),
       limit: asOptionalLimit(body.limit),
@@ -97,7 +87,7 @@ export async function POST(request: NextRequest) {
         status: "error",
         message: error instanceof Error ? error.message : "Collection request failed"
       },
-      { status: 400 }
+      { status: error instanceof AccessError ? error.statusCode : 400 }
     );
   }
 }

@@ -11,7 +11,6 @@ import {
   Globe2,
   Layers,
   LineChart,
-  Lock,
   RefreshCw,
   Scale,
   Shield,
@@ -20,7 +19,6 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import type {
   ApiEnvelope,
-  AuthSessionApi,
   ChartOverlay,
   ChartOverlaysResponse,
   CrossMarketWidgetsApi,
@@ -69,7 +67,7 @@ const widgetMeta = {
 
 type DashboardStatus = "loading" | "ready" | "error";
 type WarningTone = "amber" | "red" | "cyan";
-type Phase2Filter = "all" | "macro" | "correlation" | "divergence";
+type CrossMarketFilter = "all" | "macro" | "correlation" | "divergence";
 
 interface DashboardWarning {
   id: string;
@@ -87,17 +85,6 @@ async function fetchApi<T>(url: string, signal?: AbortSignal) {
   }
 
   return body.data;
-}
-
-function emptyCrossMarketData(): CrossMarketWidgetsApi {
-  return {
-    timeframe: "1d",
-    results: [],
-    assetStatuses: [],
-    correlations: [],
-    warnings: [],
-    updatedAt: new Date().toISOString()
-  };
 }
 
 function formatPair(symbol: string) {
@@ -941,7 +928,7 @@ function WidgetResultCardBack({
   );
 }
 
-function phase2Group(widgetId: string): Phase2Filter {
+function crossMarketGroup(widgetId: string): CrossMarketFilter {
   if (widgetId.includes("correlation")) {
     return "correlation";
   }
@@ -962,8 +949,8 @@ function CrossMarketOverview({
   onBack
 }: {
   data: CrossMarketWidgetsApi | null;
-  filter: Phase2Filter;
-  onFilterChange: (filter: Phase2Filter) => void;
+  filter: CrossMarketFilter;
+  onFilterChange: (filter: CrossMarketFilter) => void;
   selectedWidgetId: string | null;
   onSelectWidget: (widgetId: string) => void;
   onBack: () => void;
@@ -977,7 +964,7 @@ function CrossMarketOverview({
       return data.results;
     }
 
-    return data.results.filter((result) => phase2Group(result.widgetId) === filter);
+    return data.results.filter((result) => crossMarketGroup(result.widgetId) === filter);
   }, [data, filter]);
   const primaryAssets = data?.assetStatuses.filter((status) =>
     ["BTCUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"].includes(status.symbol)
@@ -989,7 +976,7 @@ function CrossMarketOverview({
       <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <SectionHeader eyebrow="Cross-market context" title="Macro Context" />
         <div className="glass-surface flex w-fit overflow-hidden rounded-[18px] p-1">
-          {(["all", "macro", "correlation", "divergence"] as Phase2Filter[]).map((item) => (
+          {(["all", "macro", "correlation", "divergence"] as CrossMarketFilter[]).map((item) => (
             <button
               className={cn(
                 "h-9 rounded-[14px] px-3 text-xs font-semibold capitalize text-white/68 transition hover:bg-white/10",
@@ -1079,10 +1066,9 @@ export function DashboardFoundation() {
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatusApi | null>(null);
   const [widgets, setWidgets] = useState<WidgetResultApi[]>([]);
   const [crossMarket, setCrossMarket] = useState<CrossMarketWidgetsApi | null>(null);
-  const [authSession, setAuthSession] = useState<AuthSessionApi | null>(null);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [selectedCrossMarketWidgetId, setSelectedCrossMarketWidgetId] = useState<string | null>(null);
-  const [phase2Filter, setPhase2Filter] = useState<Phase2Filter>("all");
+  const [crossMarketFilter, setCrossMarketFilter] = useState<CrossMarketFilter>("all");
   const [status, setStatus] = useState<DashboardStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -1098,12 +1084,10 @@ export function DashboardFoundation() {
 
     async function loadSymbols() {
       try {
-        const data = await fetchApi<{ symbols: SymbolApi[]; count: number; session: AuthSessionApi }>("/api/symbols", controller.signal);
+        const data = await fetchApi<{ symbols: SymbolApi[]; count: number }>("/api/symbols", controller.signal);
         setSymbols(data.symbols);
-        setAuthSession(data.session);
         if (data.symbols.length > 0) {
-          const unlockedSymbols = data.symbols.filter((item) => !item.isLocked);
-          setSymbol((current) => unlockedSymbols.some((item) => item.symbol === current) ? current : unlockedSymbols[0]?.symbol ?? data.symbols[0].symbol);
+          setSymbol((current) => data.symbols.some((item) => item.symbol === current) ? current : data.symbols[0].symbol);
         }
       } catch (loadError) {
         if (!controller.signal.aborted && !isAbortError(loadError)) {
@@ -1125,14 +1109,6 @@ export function DashboardFoundation() {
       setError(null);
 
       try {
-        const sessionData = await fetchApi<AuthSessionApi>("/api/auth/session", controller.signal);
-        setAuthSession(sessionData);
-
-        if (!sessionData.accessibleSymbols.includes(symbol)) {
-          setSymbol(sessionData.accessibleSymbols[0] ?? "BTCUSDT");
-          return;
-        }
-
         const [marketData, overlayData, widgetData, runtimeData, crossMarketData] = await Promise.all([
           fetchApi<MarketOverviewApi>(
             `/api/market/overview?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&interval=${encodeURIComponent(timeframe)}&range=${encodeURIComponent(chartRange)}&limit=120`,
@@ -1150,12 +1126,10 @@ export function DashboardFoundation() {
             "/api/runtime/status",
             controller.signal
           ),
-          sessionData.isAdmin
-            ? fetchApi<CrossMarketWidgetsApi>(
-                "/api/widgets/cross-market?timeframe=1d",
-                controller.signal
-              )
-            : Promise.resolve(emptyCrossMarketData())
+          fetchApi<CrossMarketWidgetsApi>(
+            "/api/widgets/cross-market?timeframe=1d",
+            controller.signal
+          )
         ]);
 
         setOverview(marketData);
@@ -1310,21 +1284,14 @@ export function DashboardFoundation() {
                   <button
                     className={cn(
                       "flex h-11 items-center gap-2 rounded-[18px] px-4 text-sm font-semibold text-white/74 transition hover:bg-white/10",
-                      item.symbol === symbol && "bg-white/18 text-white shadow-glass",
-                      item.isLocked && "cursor-not-allowed opacity-45 hover:bg-transparent"
+                      item.symbol === symbol && "bg-white/18 text-white shadow-glass"
                     )}
-                    disabled={item.isLocked}
                     key={item.symbol}
-                    onClick={() => {
-                      if (!item.isLocked) {
-                        setSymbol(item.symbol);
-                      }
-                    }}
-                    title={item.isLocked ? "Locked in Basic access" : undefined}
+                    onClick={() => setSymbol(item.symbol)}
                     type="button"
                   >
                     {formatPair(item.symbol)}
-                    {item.isLocked ? <Lock className="h-4 w-4 text-white/54" /> : <ChevronDown className="h-4 w-4 text-white/46" />}
+                    <ChevronDown className="h-4 w-4 text-white/46" />
                   </button>
                 ))}
               </div>
@@ -1408,16 +1375,14 @@ export function DashboardFoundation() {
             timeframe={timeframe}
           />
 
-          {authSession?.isAdmin ? (
-            <CrossMarketOverview
-              data={crossMarket}
-              filter={phase2Filter}
-              onBack={() => setSelectedCrossMarketWidgetId(null)}
-              onFilterChange={setPhase2Filter}
-              onSelectWidget={setSelectedCrossMarketWidgetId}
-              selectedWidgetId={selectedCrossMarketWidgetId}
-            />
-          ) : null}
+          <CrossMarketOverview
+            data={crossMarket}
+            filter={crossMarketFilter}
+            onBack={() => setSelectedCrossMarketWidgetId(null)}
+            onFilterChange={setCrossMarketFilter}
+            onSelectWidget={setSelectedCrossMarketWidgetId}
+            selectedWidgetId={selectedCrossMarketWidgetId}
+          />
 
           <div className="mb-4 flex items-center justify-between">
             <SectionHeader eyebrow="Signal engines" title="Widget Results" />
@@ -1428,8 +1393,8 @@ export function DashboardFoundation() {
                 </StatusBadge>
               ) : null}
               {runtimeStatus ? (
-                <StatusBadge tone={runtimeStatus.scheduler.phase2Enabled ? "green" : "amber"}>
-                  Macro {runtimeStatus.scheduler.phase2Enabled ? "scheduled" : "manual"}
+                <StatusBadge tone={runtimeStatus.scheduler.macroEnabled ? "green" : "amber"}>
+                  Macro {runtimeStatus.scheduler.macroEnabled ? "scheduled" : "manual"}
                 </StatusBadge>
               ) : null}
               {runtimeStatus ? (

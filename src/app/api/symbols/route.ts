@@ -1,21 +1,19 @@
 import { NextRequest } from "next/server";
 import { apiErrorJson, okJson } from "@/lib/services/apiResponses";
 import { listSymbols } from "@/lib/services/symbolService";
-import { authSessionApi, getSessionFromRequest } from "@/lib/auth/access";
-import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
+import { authSessionApi, getSessionFromRequest, requireRole } from "@/lib/auth/access";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromRequest(request);
-    const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-    const symbols = listSymbols(undefined, session);
+    const session = requireRole(getSessionFromRequest(request), "viewer");
+    const symbols = listSymbols();
 
     return okJson({
       symbols,
       count: symbols.length,
-      session: authSessionApi({ ...session, visibleWidgetIds })
+      session: authSessionApi(session)
     });
   } catch (error) {
     return apiErrorJson(error, "Unable to load symbols");

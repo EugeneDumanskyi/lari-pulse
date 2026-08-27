@@ -1,54 +1,42 @@
-import { NextRequest } from "next/server";
-import {
-  authenticateAccount,
-  authSessionApi,
-  createAuthenticatedSession,
-  getSessionFromToken,
-  setSessionCookie
-} from "@/lib/auth/access";
-import { apiErrorJson, okJson } from "@/lib/services/apiResponses";
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateAccount } from "@/lib/auth/access";
+import { clientIpFromHeaders, loginThrottle } from "@/lib/auth/loginThrottle";
+import { apiErrorJson } from "@/lib/services/apiResponses";
 import { ApiInputError } from "@/lib/services/apiValidation";
-import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
+import { signedInResponse } from "@/lib/services/authResponses";
 
 export const runtime = "nodejs";
 
 interface LoginBody {
   email?: unknown;
-  username?: unknown;
   password?: unknown;
-}
-
-function clientIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip");
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as LoginBody;
-    const email = typeof body.email === "string"
-      ? body.email.trim()
-      : typeof body.username === "string"
-        ? body.username.trim()
-        : "";
+    const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
+    const ip = clientIpFromHeaders(request.headers);
+    const retryAfter = loginThrottle.retryAfterSeconds(ip, email);
+
+    if (retryAfter > 0) {
+      return NextResponse.json(
+        { status: "error", message: "Too many sign-in attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      );
+    }
+
     const user = authenticateAccount({ email, password });
 
     if (!user) {
+      loginThrottle.recordFailure(ip, email);
       throw new ApiInputError("Invalid email or password", 401);
     }
 
-    const created = createAuthenticatedSession({
-      userId: user.id,
-      userAgent: request.headers.get("user-agent"),
-      ipAddress: clientIp(request)
-    });
-    const session = getSessionFromToken(created.token);
-    const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-    const response = okJson(authSessionApi({ ...session, visibleWidgetIds }));
+    loginThrottle.recordSuccess(ip, email);
 
-    setSessionCookie(response, created.token, created.expiresAt);
-
-    return response;
+    return signedInResponse(request, user.id);
   } catch (error) {
     return apiErrorJson(error, "Unable to sign in");
   }

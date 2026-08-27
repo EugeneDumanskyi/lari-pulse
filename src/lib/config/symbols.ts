@@ -49,7 +49,7 @@ export const defaultSymbols: AppSymbolConfig[] = [
   }
 ];
 
-export const phase2Symbols: AppSymbolConfig[] = [
+export const crossMarketSymbols: AppSymbolConfig[] = [
   {
     symbol: "XAUUSD",
     assetType: "commodity",
@@ -60,7 +60,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "NASDAQQGLDI",
     priceUnit: "index_points",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "Nasdaq via FRED",
       fredSeriesId: "NASDAQQGLDI",
@@ -79,7 +78,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "DCOILWTICO",
     priceUnit: "USD_PER_BARREL",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "U.S. Energy Information Administration via FRED",
       fredSeriesId: "DCOILWTICO",
@@ -97,7 +95,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "NASDAQ100",
     priceUnit: "index_points",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "Nasdaq via FRED",
       fredSeriesId: "NASDAQ100",
@@ -115,7 +112,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "SP500",
     priceUnit: "index_points",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "S&P Dow Jones Indices via FRED",
       fredSeriesId: "SP500",
@@ -133,7 +129,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "DTWEXBGS",
     priceUnit: "index_points",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "Federal Reserve via FRED",
       fredSeriesId: "DTWEXBGS",
@@ -152,7 +147,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "DGS10",
     priceUnit: "percent",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "Board of Governors via FRED",
       fredSeriesId: "DGS10",
@@ -170,7 +164,6 @@ export const phase2Symbols: AppSymbolConfig[] = [
     providerSymbol: "VIXCLS",
     priceUnit: "index_points",
     metadata: {
-      phase: "phase2",
       provider: "FRED",
       providerName: "CBOE via FRED",
       fredSeriesId: "VIXCLS",
@@ -180,4 +173,4 @@ export const phase2Symbols: AppSymbolConfig[] = [
   }
 ];
 
-export const phase2StarterSymbols = phase2Symbols;
+export const crossMarketStarterSymbols = crossMarketSymbols;

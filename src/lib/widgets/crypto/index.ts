@@ -4,7 +4,7 @@ import { supportResistanceWidget } from "./supportResistanceWidget";
 import { trendStrengthWidget } from "./trendStrengthWidget";
 import { volumeConfirmationWidget } from "./volumeConfirmationWidget";
 
-export const phase1Widgets = [
+export const cryptoWidgets = [
   trendStrengthWidget,
   momentumExhaustionWidget,
   supportResistanceWidget,

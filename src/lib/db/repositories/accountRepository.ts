@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type Database from "better-sqlite3";
-import type { NewUser, SessionRecord, UserRecord } from "../types";
+import type { InviteRecord, NewUser, SessionRecord, UserRecord, UserRole, UserStatus } from "../types";
 import { appConfig } from "@/lib/config/appConfig";
 import { hashPassword, normalizeEmail } from "@/lib/auth/password";
 
@@ -8,8 +8,8 @@ interface UserDbRow {
   id: number;
   email: string;
   password_hash: string;
-  role: "user" | "admin";
-  status: "active" | "disabled";
+  role: UserRole;
+  status: UserStatus;
   email_verified_at: string | null;
   created_at: string;
   updated_at: string;
@@ -24,6 +24,18 @@ interface SessionDbRow {
   ip_address: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface InviteDbRow {
+  id: number;
+  token_hash: string;
+  role: UserRole;
+  email: string | null;
+  created_by: number | null;
+  expires_at: string;
+  used_at: string | null;
+  used_by: number | null;
+  created_at: string;
 }
 
 export interface SessionContextRecord {
@@ -57,8 +69,26 @@ function mapSession(row: SessionDbRow): SessionRecord {
   };
 }
 
+function mapInvite(row: InviteDbRow): InviteRecord {
+  return {
+    id: row.id,
+    tokenHash: row.token_hash,
+    role: row.role,
+    email: row.email,
+    createdBy: row.created_by,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at,
+    usedBy: row.used_by,
+    createdAt: row.created_at
+  };
+}
+
 function tokenHash(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function newToken() {
+  return crypto.randomBytes(32).toString("base64url");
 }
 
 export function findUserByEmail(db: Database.Database, email: string) {
@@ -120,7 +150,7 @@ export function createSession(
   db: Database.Database,
   input: { userId: number; maxAgeSeconds: number; userAgent?: string | null; ipAddress?: string | null }
 ) {
-  const token = crypto.randomBytes(32).toString("base64url");
+  const token = newToken();
   const expiresAt = new Date(Date.now() + input.maxAgeSeconds * 1000).toISOString();
 
   db.prepare(
@@ -215,8 +245,8 @@ export function getSessionContextByToken(db: Database.Database, token: string | 
       id: row.user_id as number,
       email: row.user_email as string,
       password_hash: row.user_password_hash as string,
-      role: row.user_role as "user" | "admin",
-      status: row.user_status as "active" | "disabled",
+      role: row.user_role as UserRole,
+      status: row.user_status as UserStatus,
       email_verified_at: row.user_email_verified_at as string | null,
       created_at: row.user_created_at as string,
       updated_at: row.user_updated_at as string
@@ -224,19 +254,163 @@ export function getSessionContextByToken(db: Database.Database, token: string | 
   };
 }
 
-export function seedAdminUser(db: Database.Database) {
-  const email = normalizeEmail(appConfig.adminEmail);
-  const existing = findUserByEmail(db, email);
+export function countUsers(db: Database.Database) {
+  const row = db.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number };
+  return row.count;
+}
 
-  if (existing) {
-    return existing;
+export function countActiveAdmins(db: Database.Database) {
+  const row = db
+    .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active'")
+    .get() as { count: number };
+  return row.count;
+}
+
+export function listUsers(db: Database.Database) {
+  const rows = db.prepare("SELECT * FROM users ORDER BY created_at ASC, id ASC").all() as UserDbRow[];
+  return rows.map(mapUser);
+}
+
+export function updateUser(
+  db: Database.Database,
+  id: number,
+  patch: { role?: UserRole; status?: UserStatus; passwordHash?: string }
+) {
+  const current = findUserById(db, id);
+
+  if (!current) {
+    return null;
+  }
+
+  db.prepare(
+    `
+    UPDATE users
+    SET role = @role,
+        status = @status,
+        password_hash = @passwordHash,
+        updated_at = datetime('now')
+    WHERE id = @id
+  `
+  ).run({
+    id,
+    role: patch.role ?? current.role,
+    status: patch.status ?? current.status,
+    passwordHash: patch.passwordHash ?? current.passwordHash
+  });
+
+  return findUserById(db, id);
+}
+
+export function deleteUser(db: Database.Database, id: number) {
+  return db.prepare("DELETE FROM users WHERE id = ?").run(id).changes > 0;
+}
+
+export function deleteSessionsForUser(db: Database.Database, userId: number, exceptToken?: string) {
+  db.prepare(
+    `
+    DELETE FROM sessions
+    WHERE user_id = @userId
+      AND (@exceptHash IS NULL OR token_hash != @exceptHash)
+  `
+  ).run({ userId, exceptHash: exceptToken ? tokenHash(exceptToken) : null });
+}
+
+export function createInvite(
+  db: Database.Database,
+  input: { role: UserRole; email?: string | null; createdBy: number | null; maxAgeSeconds: number }
+) {
+  const token = newToken();
+  const expiresAt = new Date(Date.now() + input.maxAgeSeconds * 1000).toISOString();
+  const result = db
+    .prepare(
+      `
+      INSERT INTO invites (token_hash, role, email, created_by, expires_at)
+      VALUES (@tokenHash, @role, @email, @createdBy, @expiresAt)
+    `
+    )
+    .run({
+      tokenHash: tokenHash(token),
+      role: input.role,
+      email: input.email ? normalizeEmail(input.email) : null,
+      createdBy: input.createdBy,
+      expiresAt
+    });
+  const row = db.prepare("SELECT * FROM invites WHERE id = ?").get(Number(result.lastInsertRowid)) as InviteDbRow;
+
+  return { token, invite: mapInvite(row) };
+}
+
+export function findUsableInvite(db: Database.Database, token: string | undefined) {
+  if (!token) {
+    return null;
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT *
+      FROM invites
+      WHERE token_hash = @tokenHash
+        AND used_at IS NULL
+        AND expires_at > @now
+      LIMIT 1
+    `
+    )
+    .get({ tokenHash: tokenHash(token), now: new Date().toISOString() }) as InviteDbRow | undefined;
+
+  return row ? mapInvite(row) : null;
+}
+
+export function markInviteUsed(db: Database.Database, inviteId: number, userId: number) {
+  return (
+    db
+      .prepare(
+        `
+        UPDATE invites
+        SET used_at = datetime('now'),
+            used_by = @userId
+        WHERE id = @inviteId
+          AND used_at IS NULL
+      `
+      )
+      .run({ inviteId, userId }).changes > 0
+  );
+}
+
+export function listPendingInvites(db: Database.Database) {
+  const rows = db
+    .prepare(
+      `
+      SELECT *
+      FROM invites
+      WHERE used_at IS NULL
+        AND expires_at > @now
+      ORDER BY created_at DESC, id DESC
+    `
+    )
+    .all({ now: new Date().toISOString() }) as InviteDbRow[];
+
+  return rows.map(mapInvite);
+}
+
+export function deleteInvite(db: Database.Database, id: number) {
+  return db.prepare("DELETE FROM invites WHERE id = ?").run(id).changes > 0;
+}
+
+/**
+ * Headless fallback for the first-run setup page: when no users exist yet and
+ * LARIPULSE_ADMIN_EMAIL / LARIPULSE_ADMIN_PASSWORD are both set, create that admin.
+ */
+export function seedAdminUser(db: Database.Database) {
+  if (!appConfig.adminEmail || !appConfig.adminPassword || countUsers(db) > 0) {
+    return null;
   }
 
   return createUser(db, {
-    email,
+    email: normalizeEmail(appConfig.adminEmail),
     passwordHash: hashPassword(appConfig.adminPassword),
     role: "admin",
     status: "active",
-    emailVerifiedAt: new Date().toISOString()
+    emailVerifiedAt: null
   });
 }

@@ -1,8 +1,7 @@
 import type { SourceRef, WidgetSeverity } from "@/lib/widgets/types";
-import type { SourceRunStatus } from "@/lib/db/types";
+import type { SignupMode, SourceRunStatus, UserRole, UserStatus } from "@/lib/db/types";
 import type { AssetType, MarketDataSource } from "@/lib/config/marketTypes";
-import type { AccessPlan } from "@/lib/auth/access";
-import type { WidgetGroup, WidgetPlanTier } from "@/lib/widgets/catalog";
+import type { WidgetGroup } from "@/lib/widgets/catalog";
 
 export interface ApiEnvelope<T> {
   status: "ok";
@@ -24,19 +23,44 @@ export interface SymbolApi {
   providerSymbol: string | null;
   priceUnit: string | null;
   isActive: boolean;
-  isLocked: boolean;
 }
 
 export interface AuthSessionApi {
-  isAdmin: boolean;
-  plan: AccessPlan;
-  username: string | null;
   userId: number | null;
   email: string | null;
-  role: "user" | "admin" | "anonymous";
+  role: UserRole | null;
+  isAuthenticated: boolean;
   accessibleSymbols: string[];
-  lockedSymbols: string[];
   visibleWidgetIds: string[];
+}
+
+export interface InstanceSettingsApi {
+  signupMode: SignupMode;
+  publicDashboard: boolean;
+}
+
+export interface UserApi {
+  id: number;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InviteApi {
+  id: number;
+  role: UserRole;
+  email: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface CreatedInviteApi {
+  invite: InviteApi;
+  /** Shown once; only its hash is stored. */
+  token: string;
+  path: string;
 }
 
 export interface WidgetResultApi {
@@ -58,19 +82,15 @@ export interface WidgetCatalogItemApi {
   widgetId: string;
   title: string;
   group: WidgetGroup;
-  planTier: WidgetPlanTier;
   defaultEnabled: boolean;
   priority: number;
   category: string;
   iconKey: string;
   description: string;
-  isAvailable: boolean;
-  isLocked: boolean;
   isEnabled: boolean;
 }
 
 export interface WidgetSettingsApi {
-  plan: AccessPlan;
   canEdit: boolean;
   enabledWidgetIds: string[];
   catalog: WidgetCatalogItemApi[];
@@ -164,7 +184,6 @@ export interface MarketSummaryApi {
   candleCount: number;
   updatedAt: string | null;
   isStale: boolean;
-  isLocked: boolean;
   sourceNote: string | null;
 }
 
@@ -193,10 +212,10 @@ export interface RuntimeStatusApi {
     intervalSeconds: number;
     lastRunAt: string | null;
     lastStatus: "ok" | "partial" | "error" | "skipped" | null;
-    phase2Enabled: boolean;
-    phase2IntervalSeconds: number;
-    lastPhase2RunAt: string | null;
-    lastPhase2Status: "ok" | "partial" | "error" | "skipped" | null;
+    macroEnabled: boolean;
+    macroIntervalSeconds: number;
+    lastMacroRunAt: string | null;
+    lastMacroStatus: "ok" | "partial" | "error" | "skipped" | null;
   };
   liquidity: {
     enabled: boolean;

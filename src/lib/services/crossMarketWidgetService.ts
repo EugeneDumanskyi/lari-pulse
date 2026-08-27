@@ -5,14 +5,14 @@ import type {
   CrossMarketWidgetsApi,
   WidgetResultApi
 } from "@/lib/api/types";
-import { defaultSymbols, phase2Symbols, type AppSymbolConfig } from "@/lib/config/symbols";
+import { defaultSymbols, crossMarketSymbols, type AppSymbolConfig } from "@/lib/config/symbols";
 import { calculateCorrelationPairs } from "@/lib/services/correlationService";
 import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import { getCandlesBySymbolTimeframe } from "@/lib/db/repositories/candlesRepository";
 import type { CandleRecord } from "@/lib/db/types";
 import { buildCrossMarketContext } from "@/lib/widgets/marketContext";
-import { phase2Widgets } from "@/lib/widgets/phase2";
+import { crossMarketWidgets } from "@/lib/widgets/crossMarket";
 import type { WidgetResult } from "@/lib/widgets/types";
 import { runWidgetEngine } from "@/lib/widgets/runner";
 import { sortByWidgetPriority } from "@/lib/widgets/catalog";
@@ -30,9 +30,9 @@ const DEFAULT_TIMEFRAME = "1d";
 const DEFAULT_CANDLE_LIMIT = 260;
 const DAILY_STALE_MS = 5 * 24 * 60 * 60 * 1000;
 
-const crossMarketSymbols: AppSymbolConfig[] = [
+const contextSymbols: AppSymbolConfig[] = [
   ...defaultSymbols.filter((symbol) => ["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(symbol.symbol)),
-  ...phase2Symbols
+  ...crossMarketSymbols
 ];
 
 function round(value: number, decimals = 4) {
@@ -126,7 +126,7 @@ export async function getCrossMarketWidgets(
   const candleLimit = options.candleLimit ?? DEFAULT_CANDLE_LIMIT;
   const now = options.now ?? new Date();
   const assetCandles = Object.fromEntries(
-    crossMarketSymbols.map((config) => [
+    contextSymbols.map((config) => [
       config.symbol,
       {
         [timeframe]: getCandlesBySymbolTimeframe(db, config.symbol, timeframe, candleLimit)
@@ -146,7 +146,6 @@ export async function getCrossMarketWidgets(
       correlations: correlations.pairs,
       latestCandleUpdatedAt: latestUpdatedAt(assetCandles, timeframe, now),
       metadata: {
-        phase: "phase2",
         mode: "on_demand_api"
       }
     }),
@@ -156,7 +155,7 @@ export async function getCrossMarketWidgets(
 
   const allowedWidgetIds = options.visibleWidgetIds ? new Set(options.visibleWidgetIds) : null;
   const selectedWidgets = sortByWidgetPriority(
-    phase2Widgets.filter((widget) => !allowedWidgetIds || allowedWidgetIds.has(widget.id)).map((widget) => ({
+    crossMarketWidgets.filter((widget) => !allowedWidgetIds || allowedWidgetIds.has(widget.id)).map((widget) => ({
       widgetId: widget.id,
       widget
     }))
@@ -174,7 +173,7 @@ export async function getCrossMarketWidgets(
       outcome.status === "success" ? [toWidgetResultApi(outcome.result, outcome.savedRowId ?? -(index + 1))] : []
     )
   );
-  const assetStatuses = crossMarketSymbols.map((config) => assetStatus(config, assetCandles[config.symbol][timeframe], now));
+  const assetStatuses = contextSymbols.map((config) => assetStatus(config, assetCandles[config.symbol][timeframe], now));
   const warnings = [
     ...assetStatuses
       .filter((status) => status.isMissing)

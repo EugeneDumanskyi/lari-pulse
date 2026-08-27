@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import {
   alignReturns,
   percentageReturns,
-  phase2CorrelationPairs,
+  crossMarketCorrelationPairs,
   rollingCorrelation,
   shortTermDivergence,
   volatilityAdjustedMovement,
@@ -60,7 +60,7 @@ export function calculateCorrelationPairs(
   const correlationWindow = options.correlationWindow ?? DEFAULT_CORRELATION_WINDOW;
   const divergenceWindow = options.divergenceWindow ?? DEFAULT_DIVERGENCE_WINDOW;
   const volatilityWindow = options.volatilityWindow ?? DEFAULT_VOLATILITY_WINDOW;
-  const pairs = options.pairs ?? phase2CorrelationPairs;
+  const pairs = options.pairs ?? crossMarketCorrelationPairs;
   const candleCache = new Map<string, ReturnType<typeof getCandlesBySymbolTimeframe>>();
 
   function candlesFor(symbol: string) {

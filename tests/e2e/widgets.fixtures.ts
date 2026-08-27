@@ -34,11 +34,11 @@ function candles(count = 40) {
 }
 
 const adminSession = {
-  isAdmin: true,
-  plan: "enterprise",
-  username: "admin",
+  userId: 1,
+  email: "e2e-admin@example.com",
+  role: "admin",
+  isAuthenticated: true,
   accessibleSymbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "NASDAQ100", "SPX", "DXY", "US10Y", "XAUUSD", "WTI", "VIX"],
-  lockedSymbols: [],
   visibleWidgetIds: ["liquidations", "nasdaq_crypto_correlation"]
 };
 
@@ -52,8 +52,7 @@ const symbols = [
     displayName: "Bitcoin",
     providerSymbol: "BTCUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: false
+    isActive: true
   },
   {
     symbol: "ETHUSDT",
@@ -64,8 +63,7 @@ const symbols = [
     displayName: "Ethereum",
     providerSymbol: "ETHUSDT",
     priceUnit: "USDT",
-    isActive: true,
-    isLocked: false
+    isActive: true
   },
   {
     symbol: "NASDAQ100",
@@ -76,14 +74,22 @@ const symbols = [
     displayName: "Nasdaq 100",
     providerSymbol: "NASDAQ100",
     priceUnit: "index",
-    isActive: true,
-    isLocked: false
+    isActive: true
   }
 ];
 
 const marketOverview = {
   symbol: "BTCUSDT",
   timeframe: "1h",
+  interval: "1h",
+  range: "7d",
+  source: {
+    provider: "sqlite",
+    interval: "1h",
+    range: "7d",
+    isFallback: false,
+    warning: null
+  },
   candles: candles(),
   metrics: {
     latestPrice: 100_012.5,
@@ -108,10 +114,10 @@ const runtimeStatus = {
     intervalSeconds: 60,
     lastRunAt: null,
     lastStatus: null,
-    phase2Enabled: false,
-    phase2IntervalSeconds: 86_400,
-    lastPhase2RunAt: null,
-    lastPhase2Status: null
+    macroEnabled: false,
+    macroIntervalSeconds: 86_400,
+    lastMacroRunAt: null,
+    lastMacroStatus: null
   },
   liquidity: {
     enabled: false,
@@ -237,7 +243,7 @@ const crossMarketWidgets = [
       divergentPairCount: 1,
       warnings: []
     },
-    sources: [{ source: "internal", type: "phase2_widget", symbol: "BTCUSDT", timeframe: "1d", updatedAt: "2026-05-26T00:00:00.000Z" }],
+    sources: [{ source: "internal", type: "cross_market_widget", symbol: "BTCUSDT", timeframe: "1d", updatedAt: "2026-05-26T00:00:00.000Z" }],
     updatedAt: "2026-05-26T00:00:00.000Z"
   }
 ];

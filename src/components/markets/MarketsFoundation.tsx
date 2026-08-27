@@ -11,7 +11,6 @@ import {
   Globe2,
   Landmark,
   LineChart,
-  Lock,
   Shield
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -190,10 +189,8 @@ function MarketListItem({
     <button
       className={cn(
         "group min-h-[96px] rounded-[22px] border px-4 py-3 text-left transition",
-        selected ? "border-sky-200/34 bg-sky-200/14 shadow-glass" : "border-white/10 bg-white/[0.045] hover:bg-white/[0.075]",
-        market.isLocked && "cursor-not-allowed opacity-50 hover:bg-white/[0.045]"
+        selected ? "border-sky-200/34 bg-sky-200/14 shadow-glass" : "border-white/10 bg-white/[0.045] hover:bg-white/[0.075]"
       )}
-      disabled={market.isLocked}
       onClick={onSelect}
       type="button"
     >
@@ -207,7 +204,7 @@ function MarketListItem({
             <div className="mt-1 truncate text-xs text-white/52">{market.displayName}</div>
           </div>
         </div>
-        {market.isLocked ? <Lock className="h-4 w-4 text-white/58" /> : <ChevronRight className="h-4 w-4 text-white/42" />}
+        <ChevronRight className="h-4 w-4 text-white/42" />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs">
         <span className="font-semibold text-white/76">{formatNumber(market.latestValue)}</span>
@@ -258,14 +255,11 @@ export function MarketsFoundation() {
 
       try {
         const data = await fetchApi<MarketsApi>("/api/markets", controller.signal);
-        const firstUnlocked = data.markets.find((market) => !market.isLocked);
 
         setMarketsData(data);
-        setSelectedSymbol((current) => {
-          const currentMarket = data.markets.find((market) => market.symbol === current);
-
-          return currentMarket && !currentMarket.isLocked ? current : firstUnlocked?.symbol ?? "BTCUSDT";
-        });
+        setSelectedSymbol((current) =>
+          data.markets.some((market) => market.symbol === current) ? current : data.markets[0]?.symbol ?? "BTCUSDT"
+        );
         setStatus("ready");
       } catch (loadError) {
         if (!controller.signal.aborted) {
@@ -292,7 +286,7 @@ export function MarketsFoundation() {
   }, [marketsData]);
 
   useEffect(() => {
-    if (!selectedMarket || selectedMarket.isLocked) {
+    if (!selectedMarket) {
       setOverview(null);
       setCryptoWidgets([]);
       return;
@@ -321,12 +315,8 @@ export function MarketsFoundation() {
           setCryptoWidgets([]);
         }
 
-        if (marketsData?.session.isAdmin) {
-          const macroData = await fetchApi<CrossMarketWidgetsApi>("/api/widgets/cross-market?timeframe=1d", controller.signal);
-          setCrossMarket(macroData);
-        } else {
-          setCrossMarket(null);
-        }
+        const macroData = await fetchApi<CrossMarketWidgetsApi>("/api/widgets/cross-market?timeframe=1d", controller.signal);
+        setCrossMarket(macroData);
       } catch (loadError) {
         if (!controller.signal.aborted) {
           setError(loadError instanceof Error ? loadError.message : "Unable to load market detail");
@@ -337,7 +327,7 @@ export function MarketsFoundation() {
     void loadMarketDetail();
 
     return () => controller.abort();
-  }, [marketsData?.session.isAdmin, selectedMarket]);
+  }, [selectedMarket]);
 
   const relatedWidgets = useMemo(() => {
     if (!selectedMarket) {
@@ -366,9 +356,6 @@ export function MarketsFoundation() {
             </div>
             {marketsData ? (
               <div className="flex flex-wrap gap-2">
-                <StatusBadge tone={marketsData.session.isAdmin ? "green" : "amber"}>
-                  {marketsData.session.isAdmin ? "Enterprise" : "Basic"}
-                </StatusBadge>
                 <StatusBadge tone="blue">{marketsData.count} markets</StatusBadge>
               </div>
             ) : null}
@@ -412,8 +399,6 @@ export function MarketsFoundation() {
             <div className="min-w-0">
               {!selectedMarket ? (
                 <EmptyState description="Select a market from the list to inspect local data and related widgets." title="No market selected" />
-              ) : selectedMarket.isLocked ? (
-                <EmptyState description="Sign in from Settings to unlock this market and its related intelligence." title={`${displaySymbol(selectedMarket.symbol)} is locked`} />
               ) : (
                 <motion.div animate={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 8 }} transition={{ duration: 0.18 }}>
                   <GlassPanel className="mb-4 p-5">

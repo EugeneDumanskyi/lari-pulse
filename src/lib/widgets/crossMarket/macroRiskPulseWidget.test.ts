@@ -4,7 +4,7 @@ import type { CorrelationPairResult } from "@/lib/correlations/types";
 import type { CandleRecord } from "@/lib/db/types";
 import { buildCrossMarketContext } from "../marketContext";
 import { validateWidgetResult } from "../runner";
-import { phase2Widgets } from ".";
+import { crossMarketWidgets } from ".";
 
 function makeCandles(symbol: string, trend: "up" | "down" | "flat", start = 100): CandleRecord[] {
   return Array.from({ length: 36 }, (_, index) => {
@@ -70,9 +70,9 @@ function pair(
   };
 }
 
-test("phase2Widgets exposes all Phase 2 widget engines without changing Phase 1 default registry", () => {
+test("crossMarketWidgets exposes all cross-market widget engines without changing the default crypto registry", () => {
   assert.deepEqual(
-    phase2Widgets.map((widget) => widget.id),
+    crossMarketWidgets.map((widget) => widget.id),
     [
       "macro_risk_pulse",
       "dollar_pressure",
@@ -86,7 +86,7 @@ test("phase2Widgets exposes all Phase 2 widget engines without changing Phase 1 
 });
 
 test("Macro Risk Pulse produces risk-on output from supportive cross-market context", async () => {
-  const result = await phase2Widgets[0].run({
+  const result = await crossMarketWidgets[0].run({
     symbol: "BTCUSDT",
     timeframe: "1d",
     now: new Date("2026-05-22T00:00:00.000Z"),
@@ -112,7 +112,7 @@ test("Macro Risk Pulse produces risk-on output from supportive cross-market cont
 });
 
 test("Macro Risk Pulse produces risk-off pressure from dollar, yields, and weak risk assets", async () => {
-  const result = await phase2Widgets[0].run({
+  const result = await crossMarketWidgets[0].run({
     symbol: "BTCUSDT",
     timeframe: "1d",
     now: new Date("2026-05-22T00:00:00.000Z"),
@@ -136,7 +136,7 @@ test("Macro Risk Pulse produces risk-off pressure from dollar, yields, and weak 
   assert.match(result.summary, /risk-off pressure/);
 });
 
-test("all additional Phase 2 widgets produce valid explainable WidgetResult outputs", async () => {
+test("all additional cross-market widgets produce valid explainable WidgetResult outputs", async () => {
   const context = {
     symbol: "BTCUSDT",
     timeframe: "1d",
@@ -163,7 +163,7 @@ test("all additional Phase 2 widgets produce valid explainable WidgetResult outp
     })
   };
 
-  for (const widget of phase2Widgets.slice(1)) {
+  for (const widget of crossMarketWidgets.slice(1)) {
     const result = await widget.run(context);
 
     assert.equal(result.widgetId, widget.id);

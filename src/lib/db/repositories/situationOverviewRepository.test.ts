@@ -18,7 +18,6 @@ function overview(generatedAt: string, overrides: Partial<Parameters<typeof inse
   return {
     symbol: "BTCUSDT",
     timeframe: "1h",
-    accessPlan: "enterprise",
     generatedAt,
     title: "BTC is bullish with moderate risk",
     summary: "Trend and volume support the move.",
@@ -39,7 +38,7 @@ function overview(generatedAt: string, overrides: Partial<Parameters<typeof inse
 }
 
 describe("situation overview repository", () => {
-  it("stores, reads latest, and lists history by access plan", () => {
+  it("stores, reads latest, and lists history per symbol and timeframe", () => {
     const db = createMemoryDatabase();
 
     insertSituationOverview(db, overview("2026-06-01T10:00:00.000Z", { score: 20 }));
@@ -47,22 +46,20 @@ describe("situation overview repository", () => {
     insertSituationOverview(
       db,
       overview("2026-06-01T10:20:00.000Z", {
-        accessPlan: "basic",
+        timeframe: "4h",
         score: 10
       })
     );
 
     const latest = getLatestSituationOverview(db, {
       symbol: "BTCUSDT",
-      timeframe: "1h",
-      accessPlan: "enterprise"
+      timeframe: "1h"
     });
     assert.equal(latest?.score, 35);
 
     const history = listSituationOverviewHistory(db, {
       symbol: "BTCUSDT",
       timeframe: "1h",
-      accessPlan: "enterprise",
       limit: 10
     });
     assert.equal(history.length, 2);

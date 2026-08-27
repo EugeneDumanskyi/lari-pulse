@@ -8,7 +8,6 @@ import {
 } from "@/lib/services/apiValidation";
 import { listLatestWidgetResultsWithDerivedLiquidity } from "@/lib/services/widgetResultService";
 import { filterVisibleWidgetResults, getSessionFromRequest } from "@/lib/auth/access";
-import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
 
 export const runtime = "nodejs";
 
@@ -19,11 +18,10 @@ export async function GET(request: NextRequest) {
     const symbol = validateSymbol(requireQueryParam(params, "symbol"));
     validateSymbolAccess(symbol, session);
     const timeframe = validateOptionalTimeframe(params.get("timeframe"));
-    const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-    const results = filterVisibleWidgetResults(await listLatestWidgetResultsWithDerivedLiquidity({ symbol, timeframe }), {
-      ...session,
-      visibleWidgetIds
-    });
+    const results = filterVisibleWidgetResults(
+      await listLatestWidgetResultsWithDerivedLiquidity({ symbol, timeframe }),
+      session
+    );
 
     return okJson({
       symbol,

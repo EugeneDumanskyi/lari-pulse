@@ -2,14 +2,14 @@ import type { CorrelationPairResult } from "@/lib/correlations/types";
 import type { CandleRecord } from "@/lib/db/types";
 import type { MarketRegimeHint, WidgetLiquidityContext, WidgetMarketContext } from "./types";
 
-export interface Phase1MarketContextInput {
+export interface CryptoMarketContextInput {
   timeframeCandles?: Record<string, CandleRecord[]>;
   liquidity?: WidgetLiquidityContext;
   derivatives?: WidgetMarketContext["derivatives"];
   latestCandleUpdatedAt?: string;
 }
 
-export interface CrossMarketContextInput extends Phase1MarketContextInput {
+export interface CrossMarketContextInput extends CryptoMarketContextInput {
   assetCandles?: Record<string, Record<string, CandleRecord[]>>;
   correlations?: CorrelationPairResult[];
   regimeHints?: MarketRegimeHint[];
@@ -17,7 +17,7 @@ export interface CrossMarketContextInput extends Phase1MarketContextInput {
   metadata?: Record<string, unknown>;
 }
 
-export function buildPhase1MarketContext(input: Phase1MarketContextInput): WidgetMarketContext {
+export function buildCryptoMarketContext(input: CryptoMarketContextInput): WidgetMarketContext {
   return {
     timeframeCandles: input.timeframeCandles,
     liquidity: input.liquidity,

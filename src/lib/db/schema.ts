@@ -108,7 +108,6 @@ CREATE TABLE IF NOT EXISTS situation_overviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol TEXT NOT NULL,
   timeframe TEXT NOT NULL,
-  access_plan TEXT NOT NULL,
   generated_at TEXT NOT NULL,
   title TEXT NOT NULL,
   summary TEXT NOT NULL,
@@ -129,6 +128,7 @@ CREATE TABLE IF NOT EXISTS situation_overviews (
 
 CREATE TABLE IF NOT EXISTS alert_rules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
   rule_type TEXT NOT NULL CHECK (rule_type IN (
     'situation_bias_changed',
     'risk_level_changed',
@@ -138,7 +138,6 @@ CREATE TABLE IF NOT EXISTS alert_rules (
   )),
   symbol TEXT NOT NULL,
   timeframe TEXT NOT NULL,
-  access_plan TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical')),
@@ -148,15 +147,16 @@ CREATE TABLE IF NOT EXISTS alert_rules (
   threshold_value REAL,
   threshold_direction TEXT CHECK (threshold_direction IN ('above', 'below') OR threshold_direction IS NULL),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS alert_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rule_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
   symbol TEXT NOT NULL,
   timeframe TEXT NOT NULL,
-  access_plan TEXT NOT NULL,
   trigger_key TEXT NOT NULL,
   severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical')),
   title TEXT NOT NULL,
@@ -169,11 +169,13 @@ CREATE TABLE IF NOT EXISTS alert_events (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (overview_id) REFERENCES situation_overviews(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
   symbol TEXT NOT NULL,
   quantity REAL NOT NULL DEFAULT 0,
   average_cost REAL,
@@ -182,14 +184,15 @@ CREATE TABLE IF NOT EXISTS portfolio_items (
   notes TEXT,
   include_in_risk INTEGER NOT NULL CHECK (include_in_risk IN (0, 1)) DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('user', 'admin')) DEFAULT 'user',
+  role TEXT NOT NULL CHECK (role IN ('admin', 'analyst', 'viewer')) DEFAULT 'viewer',
   status TEXT NOT NULL CHECK (status IN ('active', 'disabled')) DEFAULT 'active',
   email_verified_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -206,6 +209,26 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS invites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_hash TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'analyst', 'viewer')),
+  email TEXT,
+  created_by INTEGER,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  used_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe_open_time
@@ -238,23 +261,23 @@ CREATE INDEX IF NOT EXISTS idx_derivatives_metrics_symbol_period_time
 CREATE INDEX IF NOT EXISTS idx_derivatives_metrics_source_time
   ON derivatives_metrics(source, metric_time);
 
-CREATE INDEX IF NOT EXISTS idx_situation_overviews_symbol_timeframe_plan_generated
-  ON situation_overviews(symbol, timeframe, access_plan, generated_at);
-
 CREATE INDEX IF NOT EXISTS idx_situation_overviews_symbol_timeframe_generated
   ON situation_overviews(symbol, timeframe, generated_at);
 
-CREATE INDEX IF NOT EXISTS idx_alert_rules_plan_symbol_timeframe_enabled
-  ON alert_rules(access_plan, symbol, timeframe, is_enabled);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_user_symbol_timeframe
+  ON alert_rules(user_id, symbol, timeframe);
 
-CREATE INDEX IF NOT EXISTS idx_alert_events_plan_ack_created
-  ON alert_events(access_plan, acknowledged_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_symbol_timeframe_enabled
+  ON alert_rules(symbol, timeframe, is_enabled);
+
+CREATE INDEX IF NOT EXISTS idx_alert_events_user_ack_created
+  ON alert_events(user_id, acknowledged_at, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_alert_events_rule_trigger_ack
   ON alert_events(rule_id, symbol, timeframe, trigger_key, acknowledged_at);
 
-CREATE INDEX IF NOT EXISTS idx_portfolio_items_symbol_risk
-  ON portfolio_items(symbol, include_in_risk);
+CREATE INDEX IF NOT EXISTS idx_portfolio_items_user_symbol
+  ON portfolio_items(user_id, symbol);
 
 CREATE INDEX IF NOT EXISTS idx_users_email_status
   ON users(email, status);
@@ -264,4 +287,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_expires
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token_expires
   ON sessions(token_hash, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_invites_expires_used
+  ON invites(expires_at, used_at);
 `;

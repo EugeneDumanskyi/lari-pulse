@@ -1,5 +1,5 @@
 import { getDerivativesContext } from "../marketContext";
-import { clamp, round } from "../phase1/helpers";
+import { clamp, round } from "../crypto/helpers";
 import type { SourceRef, WidgetContext, WidgetDerivativesContext, WidgetEngine, WidgetSeverity } from "../types";
 
 const STALE_MS = 45 * 60 * 1000;

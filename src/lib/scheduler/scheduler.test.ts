@@ -39,7 +39,7 @@ function successfulRefresh() {
   });
 }
 
-function successfulPhase2Refresh() {
+function successfulMacroRefresh() {
   return Promise.resolve({
     status: "ok" as const,
     collection: {
@@ -80,7 +80,7 @@ describe("scheduler", () => {
       const sourceRun = getSourceRunById(db, result.sourceRunId);
 
       assert.equal(sourceRun?.source, "internal");
-      assert.equal(sourceRun?.collectorId, "phase1_scheduler");
+      assert.equal(sourceRun?.collectorId, "market_scheduler");
       assert.equal(sourceRun?.status, "success");
       assert.match(sourceRun?.metadataJson ?? "", /"widgetsSaved":5/);
     } finally {
@@ -89,45 +89,45 @@ describe("scheduler", () => {
     }
   });
 
-  it("runs optional Phase 2 refresh when enabled and due", async () => {
+  it("runs optional macro refresh when enabled and due", async () => {
     const db = createMemoryDatabase();
-    const previousEnabled = appConfig.phase2SchedulerEnabled;
-    const previousInterval = appConfig.phase2RefreshIntervalSeconds;
+    const previousEnabled = appConfig.macroSchedulerEnabled;
+    const previousInterval = appConfig.macroRefreshIntervalSeconds;
 
-    appConfig.phase2SchedulerEnabled = true;
-    appConfig.phase2RefreshIntervalSeconds = 60 * 60;
+    appConfig.macroSchedulerEnabled = true;
+    appConfig.macroRefreshIntervalSeconds = 60 * 60;
 
     try {
       const result = await runSchedulerCycle({
         db,
-        reason: "phase2-test",
+        reason: "macro-test",
         refresh: successfulRefresh,
-        phase2Refresh: successfulPhase2Refresh
+        macroRefresh: successfulMacroRefresh
       });
 
       assert.equal(result.status, "ok");
-      assert.equal(result.phase2Refresh?.widgetPersistence?.widgetsSaved, 7);
+      assert.equal(result.macroRefresh?.widgetPersistence?.widgetsSaved, 7);
 
       const sourceRun = getSourceRunById(db, result.sourceRunId!);
 
-      assert.match(sourceRun?.metadataJson ?? "", /"phase2Due":true/);
+      assert.match(sourceRun?.metadataJson ?? "", /"macroDue":true/);
       assert.match(sourceRun?.metadataJson ?? "", /"widgetsSaved":7/);
     } finally {
-      appConfig.phase2SchedulerEnabled = previousEnabled;
-      appConfig.phase2RefreshIntervalSeconds = previousInterval;
+      appConfig.macroSchedulerEnabled = previousEnabled;
+      appConfig.macroRefreshIntervalSeconds = previousInterval;
       stopSchedulerForTests();
       db.close();
     }
   });
 
-  it("uses persisted FRED success to avoid duplicate Phase 2 refresh after restart", async () => {
+  it("uses persisted FRED success to avoid duplicate macro refresh after restart", async () => {
     const db = createMemoryDatabase();
-    const previousEnabled = appConfig.phase2SchedulerEnabled;
-    const previousInterval = appConfig.phase2RefreshIntervalSeconds;
-    let phase2RefreshCalls = 0;
+    const previousEnabled = appConfig.macroSchedulerEnabled;
+    const previousInterval = appConfig.macroRefreshIntervalSeconds;
+    let macroRefreshCalls = 0;
 
-    appConfig.phase2SchedulerEnabled = true;
-    appConfig.phase2RefreshIntervalSeconds = 24 * 60 * 60;
+    appConfig.macroSchedulerEnabled = true;
+    appConfig.macroRefreshIntervalSeconds = 24 * 60 * 60;
 
     insertSourceRun(db, {
       source: "fred",
@@ -141,24 +141,24 @@ describe("scheduler", () => {
     try {
       const result = await runSchedulerCycle({
         db,
-        reason: "phase2-persisted-due-check",
+        reason: "macro-persisted-due-check",
         refresh: successfulRefresh,
-        phase2Refresh: () => {
-          phase2RefreshCalls += 1;
-          return successfulPhase2Refresh();
+        macroRefresh: () => {
+          macroRefreshCalls += 1;
+          return successfulMacroRefresh();
         }
       });
 
       assert.equal(result.status, "ok");
-      assert.equal(result.phase2Refresh, undefined);
-      assert.equal(phase2RefreshCalls, 0);
+      assert.equal(result.macroRefresh, undefined);
+      assert.equal(macroRefreshCalls, 0);
 
       const sourceRun = getSourceRunById(db, result.sourceRunId!);
 
-      assert.match(sourceRun?.metadataJson ?? "", /"phase2Due":false/);
+      assert.match(sourceRun?.metadataJson ?? "", /"macroDue":false/);
     } finally {
-      appConfig.phase2SchedulerEnabled = previousEnabled;
-      appConfig.phase2RefreshIntervalSeconds = previousInterval;
+      appConfig.macroSchedulerEnabled = previousEnabled;
+      appConfig.macroRefreshIntervalSeconds = previousInterval;
       stopSchedulerForTests();
       db.close();
     }

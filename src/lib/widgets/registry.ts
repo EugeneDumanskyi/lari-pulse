@@ -1,5 +1,5 @@
 import type { WidgetEngine } from "./types";
-import { phase1Widgets } from "./phase1";
+import { cryptoWidgets } from "./crypto";
 import { liquidityWidgets } from "./liquidity";
 import { derivativesWidgets } from "./derivatives";
 
@@ -33,4 +33,4 @@ export class WidgetRegistry {
   }
 }
 
-export const widgetRegistry = new WidgetRegistry([...phase1Widgets, ...liquidityWidgets, ...derivativesWidgets]);
+export const widgetRegistry = new WidgetRegistry([...cryptoWidgets, ...liquidityWidgets, ...derivativesWidgets]);

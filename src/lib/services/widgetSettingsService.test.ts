@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import Database from "better-sqlite3";
-import { createAdminSession, getSessionFromToken } from "@/lib/auth/access";
-import { runMigrations } from "@/lib/db/migrations";
+import { AccessError } from "@/lib/auth/access";
+import { anonymousTestSession, createTestDatabase, createTestSession } from "@/lib/auth/testing";
+import { widgetCatalog } from "@/lib/widgets/catalog";
 import { ApiInputError } from "./apiValidation";
 import {
   getEffectiveVisibleWidgetIds,
@@ -10,59 +10,52 @@ import {
   updateWidgetSettings
 } from "./widgetSettingsService";
 
-function createMemoryDatabase() {
-  const db = new Database(":memory:");
-  runMigrations(db);
-  return db;
-}
-
 describe("widget settings service", () => {
-  it("returns fixed Basic widget visibility for anonymous users", () => {
-    const db = createMemoryDatabase();
-    const state = getWidgetSettingsState(getSessionFromToken(undefined), db);
+  it("defaults every catalog widget to its catalog setting", () => {
+    const db = createTestDatabase();
+    const state = getWidgetSettingsState(createTestSession(db, "viewer"), db);
 
     assert.equal(state.canEdit, false);
-    assert.equal(state.plan, "basic");
-    assert.deepEqual(state.enabledWidgetIds, ["trend_strength", "momentum_exhaustion"]);
-    assert.equal(state.catalog.find((item) => item.widgetId === "trend_strength")?.isEnabled, true);
-    assert.equal(state.catalog.find((item) => item.widgetId === "multi_timeframe_alignment")?.isLocked, true);
-    assert.equal(state.catalog.find((item) => item.widgetId === "risk_regime")?.isLocked, true);
+    assert.equal(state.enabledWidgetIds.length, widgetCatalog.filter((item) => item.defaultEnabled).length);
+    assert.equal(state.catalog.find((item) => item.widgetId === "risk_regime")?.isEnabled, true);
   });
 
-  it("persists admin widget visibility and preserves catalog priority", () => {
-    const db = createMemoryDatabase();
-    const session = createAdminSession();
+  it("persists admin widget visibility instance-wide in catalog priority order", () => {
+    const db = createTestDatabase();
+    const admin = createTestSession(db, "admin");
 
     updateWidgetSettings(
       {
         enabledWidgetIds: ["momentum_exhaustion", "risk_regime", "trend_strength"]
       },
-      session,
+      admin,
       db
     );
 
-    assert.deepEqual(getEffectiveVisibleWidgetIds(session, db), [
+    assert.deepEqual(getEffectiveVisibleWidgetIds(db), [
       "trend_strength",
       "momentum_exhaustion",
       "risk_regime"
     ]);
+    assert.deepEqual(createTestSession(db, "viewer").visibleWidgetIds, getEffectiveVisibleWidgetIds(db));
 
-    const state = getWidgetSettingsState(session, db);
+    const state = getWidgetSettingsState(admin, db);
 
     assert.equal(state.canEdit, true);
     assert.equal(state.catalog.find((item) => item.widgetId === "volume_confirmation")?.isEnabled, false);
     assert.equal(state.catalog.find((item) => item.widgetId === "risk_regime")?.isEnabled, true);
   });
 
-  it("rejects non-admin and unknown widget settings writes", () => {
-    const db = createMemoryDatabase();
+  it("rejects non-admin, anonymous and unknown widget settings writes", () => {
+    const db = createTestDatabase();
 
     assert.throws(
-      () => updateWidgetSettings({ enabledWidgetIds: ["trend_strength"] }, getSessionFromToken(undefined), db),
-      ApiInputError
+      () => updateWidgetSettings({ enabledWidgetIds: ["trend_strength"] }, createTestSession(db, "analyst"), db),
+      AccessError
     );
+    assert.throws(() => getWidgetSettingsState(anonymousTestSession(db), db), AccessError);
     assert.throws(
-      () => updateWidgetSettings({ enabledWidgetIds: ["not_a_widget"] }, createAdminSession(), db),
+      () => updateWidgetSettings({ enabledWidgetIds: ["not_a_widget"] }, createTestSession(db, "admin"), db),
       ApiInputError
     );
   });

@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { okJson } from "@/lib/services/apiResponses";
 import { authSessionApi, getSessionFromRequest } from "@/lib/auth/access";
-import { getEffectiveVisibleWidgetIds } from "@/lib/services/widgetSettingsService";
+import { apiErrorJson, okJson } from "@/lib/services/apiResponses";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  const visibleWidgetIds = getEffectiveVisibleWidgetIds(session);
-
-  return okJson(authSessionApi({ ...session, visibleWidgetIds }));
+  try {
+    return okJson(authSessionApi(getSessionFromRequest(request)));
+  } catch (error) {
+    return apiErrorJson(error, "Unable to load session");
+  }
 }

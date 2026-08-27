@@ -262,7 +262,7 @@ function PortfolioForm({
           >
             {symbols.map((symbol) => (
               <option disabled={!accessible.has(symbol)} key={symbol} value={symbol}>
-                {displaySymbol(symbol)}{accessible.has(symbol) ? "" : " locked"}
+                {displaySymbol(symbol)}
               </option>
             ))}
           </select>
@@ -492,7 +492,6 @@ export function PortfolioFoundation() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusBadge tone={session?.isAdmin ? "green" : "amber"}>{session?.isAdmin ? "Enterprise" : "Basic"}</StatusBadge>
               <StatusBadge tone="blue">{portfolio?.summary.itemCount ?? 0} items</StatusBadge>
               <button
                 className="glass-surface flex h-8 w-8 items-center justify-center rounded-xl text-white/74 transition hover:bg-white/12"

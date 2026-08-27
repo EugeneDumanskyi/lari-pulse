@@ -67,5 +67,5 @@ Current extraction sources:
 - Keep overlay extraction in the service layer.
 - Do not expose raw collector payloads in overlay responses.
 - Do not fetch external data from the chart component.
-- Do not show overlays from widgets hidden by the current local access plan/settings.
+- Do not show overlays from widgets hidden by the instance widget settings.
 - Keep overlays descriptive; they are signal context, not entries, exits, or price targets.

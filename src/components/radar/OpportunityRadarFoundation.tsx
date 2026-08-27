@@ -219,7 +219,6 @@ export function OpportunityRadarFoundation() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusBadge tone={session?.isAdmin ? "green" : "amber"}>{session?.isAdmin ? "Enterprise" : "Basic"}</StatusBadge>
               <StatusBadge tone="blue">{radar?.scannedSymbols.length ?? 0} markets</StatusBadge>
               <StatusBadge tone="blue">{radar?.scannedTimeframes.length ?? 0} frames</StatusBadge>
             </div>

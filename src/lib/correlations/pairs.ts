@@ -1,6 +1,6 @@
 import type { CorrelationPairConfig } from "./types";
 
-export const phase2CorrelationPairs: CorrelationPairConfig[] = [
+export const crossMarketCorrelationPairs: CorrelationPairConfig[] = [
   {
     id: "btc_nasdaq100",
     leftSymbol: "BTCUSDT",

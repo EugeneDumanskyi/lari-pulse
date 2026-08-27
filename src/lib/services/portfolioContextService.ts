@@ -1,6 +1,5 @@
 import type Database from "better-sqlite3";
-import type { AuthSession } from "@/lib/auth/access";
-import { canAccessSymbol } from "@/lib/auth/access";
+import { canAccessSymbol, requireUser, type AuthSession } from "@/lib/auth/access";
 import { getDatabase } from "@/lib/db/client";
 import { initializeDatabase } from "@/lib/db/initialize";
 import { getCandlesBySymbolTimeframe } from "@/lib/db/repositories/candlesRepository";
@@ -85,7 +84,6 @@ export interface PortfolioContextApi {
     updatedAt: string;
   };
   notes: string[];
-  sessionPlan: AuthSession["plan"];
 }
 
 function ensureDatabase(db?: Database.Database) {
@@ -133,7 +131,7 @@ function validateQuantity(value: number | null | undefined) {
   return value;
 }
 
-function normalizePortfolioInput(input: PortfolioItemInput, session: AuthSession): NewPortfolioItem {
+function normalizePortfolioInput(input: PortfolioItemInput, session: AuthSession, userId: number): NewPortfolioItem {
   const symbol = input.symbol?.trim().toUpperCase();
 
   if (!symbol) {
@@ -141,12 +139,13 @@ function normalizePortfolioInput(input: PortfolioItemInput, session: AuthSession
   }
 
   if (!canAccessSymbol(session, symbol)) {
-    throw new ApiInputError(`Symbol is locked for the current access level: ${symbol}`, 403);
+    throw new ApiInputError(`Unsupported symbol: ${symbol}`);
   }
 
   const quoteCurrency = cleanText(input.quoteCurrency, "USDT")?.toUpperCase() ?? "USDT";
 
   return {
+    userId,
     symbol,
     quantity: validateQuantity(input.quantity),
     averageCost: validateMoney(input.averageCost, "averageCost"),
@@ -168,7 +167,7 @@ function normalizePortfolioPatch(input: Partial<PortfolioItemInput>, current: Po
     }
 
     if (!canAccessSymbol(session, symbol)) {
-      throw new ApiInputError(`Symbol is locked for the current access level: ${symbol}`, 403);
+      throw new ApiInputError(`Unsupported symbol: ${symbol}`);
     }
 
     patch.symbol = symbol;
@@ -219,11 +218,10 @@ function latestPriceForSymbol(db: Database.Database, symbol: string) {
   };
 }
 
-function situationForSymbol(db: Database.Database, symbol: string, session: AuthSession): PortfolioSituationApi | null {
+function situationForSymbol(db: Database.Database, symbol: string): PortfolioSituationApi | null {
   const record = getLatestSituationOverview(db, {
     symbol,
-    timeframe: "1h",
-    accessPlan: session.plan
+    timeframe: "1h"
   });
 
   if (!record) {
@@ -245,11 +243,10 @@ function situationForSymbol(db: Database.Database, symbol: string, session: Auth
   };
 }
 
-function watchConditionsForSymbol(db: Database.Database, symbol: string, session: AuthSession) {
+function watchConditionsForSymbol(db: Database.Database, symbol: string) {
   const record = getLatestSituationOverview(db, {
     symbol,
-    timeframe: "1h",
-    accessPlan: session.plan
+    timeframe: "1h"
   });
 
   if (!record) {
@@ -273,7 +270,6 @@ function riskRank(level: SituationOverview["riskLevel"]) {
 function toPortfolioItemApi(
   db: Database.Database,
   item: PortfolioItemRecord,
-  session: AuthSession,
   totalMarketValue: number
 ): PortfolioItemApi {
   const latest = latestPriceForSymbol(db, item.symbol);
@@ -283,15 +279,17 @@ function toPortfolioItemApi(
     : null;
   const costBasis = item.averageCost !== null ? item.averageCost * item.quantity : null;
 
+  const { userId: _userId, ...record } = item;
+
   return {
-    ...item,
+    ...record,
     currentPrice: latest.price,
     marketValue,
     unrealizedPnl,
     unrealizedPnlPercent: costBasis && unrealizedPnl !== null ? (unrealizedPnl / costBasis) * 100 : null,
     concentrationPercent: marketValue !== null && totalMarketValue > 0 ? (marketValue / totalMarketValue) * 100 : null,
-    situation: situationForSymbol(db, item.symbol, session),
-    watchConditions: watchConditionsForSymbol(db, item.symbol, session)
+    situation: situationForSymbol(db, item.symbol),
+    watchConditions: watchConditionsForSymbol(db, item.symbol)
   };
 }
 
@@ -356,12 +354,8 @@ function buildSummary(items: PortfolioItemApi[]) {
   };
 }
 
-function buildNotes(items: PortfolioItemApi[], session: AuthSession) {
+function buildNotes(items: PortfolioItemApi[]) {
   const notes: string[] = [];
-
-  if (!session.isAdmin) {
-    notes.push("Basic access only includes BTCUSDT portfolio context.");
-  }
 
   const withoutPrice = items.filter((item) => item.currentPrice === null).map((item) => item.symbol);
   if (withoutPrice.length > 0) {
@@ -377,8 +371,9 @@ function buildNotes(items: PortfolioItemApi[], session: AuthSession) {
 }
 
 export function getPortfolioContext(options: { session: AuthSession; db?: Database.Database }): PortfolioContextApi {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  const storedItems = listPortfolioItems(db, { symbols: options.session.accessibleSymbols });
+  const storedItems = listPortfolioItems(db, { userId: user.userId });
   const totalMarketValue = storedItems.reduce((sum, item) => {
     if (!item.includeInRisk) {
       return sum;
@@ -387,13 +382,12 @@ export function getPortfolioContext(options: { session: AuthSession; db?: Databa
     const latest = latestPriceForSymbol(db, item.symbol);
     return latest.price === null ? sum : sum + latest.price * item.quantity;
   }, 0);
-  const items = storedItems.map((item) => toPortfolioItemApi(db, item, options.session, totalMarketValue));
+  const items = storedItems.map((item) => toPortfolioItemApi(db, item, totalMarketValue));
 
   return {
     items,
     summary: buildSummary(items),
-    notes: buildNotes(items, options.session),
-    sessionPlan: options.session.plan
+    notes: buildNotes(items)
   };
 }
 
@@ -402,8 +396,9 @@ export function createPortfolioItemForSession(options: {
   input: PortfolioItemInput;
   db?: Database.Database;
 }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
-  const id = insertPortfolioItem(db, normalizePortfolioInput(options.input, options.session));
+  const id = insertPortfolioItem(db, normalizePortfolioInput(options.input, options.session, user.userId));
   const item = getPortfolioItemById(db, id);
 
   if (!item) {
@@ -419,10 +414,11 @@ export function updatePortfolioItemForSession(options: {
   input: Partial<PortfolioItemInput>;
   db?: Database.Database;
 }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
   const current = getPortfolioItemById(db, options.id);
 
-  if (!current || !canAccessSymbol(options.session, current.symbol)) {
+  if (!current || current.userId !== user.userId) {
     throw new ApiInputError("Portfolio item not found", 404);
   }
 
@@ -444,10 +440,11 @@ export function deletePortfolioItemForSession(options: {
   id: number;
   db?: Database.Database;
 }) {
+  const user = requireUser(options.session, "analyst");
   const db = ensureDatabase(options.db);
   const current = getPortfolioItemById(db, options.id);
 
-  if (!current || !canAccessSymbol(options.session, current.symbol)) {
+  if (!current || current.userId !== user.userId) {
     throw new ApiInputError("Portfolio item not found", 404);
   }
 
@@ -459,10 +456,14 @@ export function getPortfolioCalloutForSymbol(options: {
   symbol: string;
   db?: Database.Database;
 }) {
-  const db = ensureDatabase(options.db);
-  const item = listPortfolioItems(db, { symbols: [options.symbol] })[0];
+  if (options.session.userId === null) {
+    return null;
+  }
 
-  if (!item || !canAccessSymbol(options.session, item.symbol)) {
+  const db = ensureDatabase(options.db);
+  const item = listPortfolioItems(db, { userId: options.session.userId, symbols: [options.symbol] })[0];
+
+  if (!item) {
     return null;
   }
 

@@ -1,6 +1,6 @@
 import type { WidgetEngine } from "../types";
 import {
-  DEFAULT_PHASE2_TIMEFRAME,
+  DEFAULT_CROSS_MARKET_TIMEFRAME,
   coverageConfidence,
   getTrendSignal,
   latestUpdatedAt,
@@ -17,7 +17,7 @@ export const goldRiskHedgeWidget: WidgetEngine = {
   description: "Determines whether gold is behaving as a hedge, inflation hedge, or weak defensive asset.",
   requiredInputs: ["marketContext.assetCandles"],
   async run(context) {
-    const timeframe = context.timeframe ?? DEFAULT_PHASE2_TIMEFRAME;
+    const timeframe = context.timeframe ?? DEFAULT_CROSS_MARKET_TIMEFRAME;
     const gold = getTrendSignal(context, "XAUUSD", timeframe);
     const dxy = getTrendSignal(context, "DXY", timeframe);
     const us10y = getTrendSignal(context, "US10Y", timeframe);

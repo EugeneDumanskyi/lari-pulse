@@ -4,7 +4,7 @@ import { initializeDatabase } from "@/lib/db/initialize";
 import { getLatestSituationOverview } from "@/lib/db/repositories/situationOverviewRepository";
 import type { WidgetSeverity } from "@/lib/widgets/types";
 import type { AuthSession } from "@/lib/auth/access";
-import { filterVisibleWidgetResults } from "@/lib/auth/access";
+import { filterVisibleWidgetResults, requireRole } from "@/lib/auth/access";
 import { getEffectiveVisibleWidgetIds } from "./widgetSettingsService";
 import { listLatestWidgetResultsWithDerivedLiquidity } from "./widgetResultService";
 
@@ -164,8 +164,7 @@ function liquidationEventOverlays(filters: OverlayFilters, details: Record<strin
 function situationWatchOverlays(filters: OverlayFilters, db: Database.Database): ChartOverlay[] {
   const latest = getLatestSituationOverview(db, {
     symbol: filters.symbol,
-    timeframe: filters.timeframe,
-    accessPlan: filters.session.plan
+    timeframe: filters.timeframe
   });
 
   if (!latest) {
@@ -212,13 +211,13 @@ function situationWatchOverlays(filters: OverlayFilters, db: Database.Database):
 }
 
 export async function getChartOverlays(filters: OverlayFilters, db?: Database.Database): Promise<ChartOverlaysResponse> {
-  const database = db ?? getDatabase();
+  requireRole(filters.session, "viewer");
 
   if (!db) {
     initializeDatabase();
   }
 
-  const visibleWidgetIds = getEffectiveVisibleWidgetIds(filters.session);
+  const database = db ?? getDatabase();
   const widgets = filterVisibleWidgetResults(
     await listLatestWidgetResultsWithDerivedLiquidity(
       {
@@ -227,10 +226,7 @@ export async function getChartOverlays(filters: OverlayFilters, db?: Database.Da
       },
       database
     ),
-    {
-      ...filters.session,
-      visibleWidgetIds
-    }
+    { visibleWidgetIds: getEffectiveVisibleWidgetIds(database) }
   );
 
   const overlays = widgets.flatMap((widget) => {

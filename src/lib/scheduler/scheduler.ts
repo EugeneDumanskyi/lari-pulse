@@ -8,8 +8,8 @@ import {
   updateSourceRun
 } from "@/lib/db/repositories/sourceRunsRepository";
 import type { SourceRunStatus } from "@/lib/db/types";
-import { runPhase1Refresh, type Phase1RefreshResult } from "@/lib/services/phase1RefreshService";
-import { runPhase2Refresh, type Phase2RefreshResult } from "@/lib/services/phase2RefreshService";
+import { runCryptoRefresh, type CryptoRefreshResult } from "@/lib/services/cryptoRefreshService";
+import { runMacroRefresh, type MacroRefreshResult } from "@/lib/services/macroRefreshService";
 
 export interface SchedulerCycleResult {
   status: "ok" | "partial" | "error" | "skipped";
@@ -17,8 +17,8 @@ export interface SchedulerCycleResult {
   finishedAt: string;
   reason: string;
   sourceRunId?: number;
-  refresh?: Phase1RefreshResult;
-  phase2Refresh?: Phase2RefreshResult;
+  refresh?: CryptoRefreshResult;
+  macroRefresh?: MacroRefreshResult;
   message?: string;
 }
 
@@ -29,23 +29,23 @@ export interface SchedulerState {
   intervalSeconds: number;
   lastRunAt: string | null;
   lastStatus: SchedulerCycleResult["status"] | null;
-  phase2Enabled: boolean;
-  phase2IntervalSeconds: number;
-  lastPhase2RunAt: string | null;
-  lastPhase2Status: SchedulerCycleResult["status"] | null;
+  macroEnabled: boolean;
+  macroIntervalSeconds: number;
+  lastMacroRunAt: string | null;
+  lastMacroStatus: SchedulerCycleResult["status"] | null;
 }
 
 type TimerHandle = ReturnType<typeof setInterval>;
 
 const SCHEDULER_SOURCE = "internal";
-const SCHEDULER_COLLECTOR_ID = "phase1_scheduler";
+const SCHEDULER_COLLECTOR_ID = "market_scheduler";
 
 let timer: TimerHandle | null = null;
 let running = false;
 let lastRunAt: string | null = null;
 let lastStatus: SchedulerCycleResult["status"] | null = null;
-let lastPhase2RunAt: string | null = null;
-let lastPhase2Status: SchedulerCycleResult["status"] | null = null;
+let lastMacroRunAt: string | null = null;
+let lastMacroStatus: SchedulerCycleResult["status"] | null = null;
 
 function intervalSeconds() {
   const value = appConfig.collectIntervalSeconds;
@@ -57,8 +57,8 @@ function intervalSeconds() {
   return Math.floor(value);
 }
 
-function phase2IntervalSeconds() {
-  const value = appConfig.phase2RefreshIntervalSeconds;
+function macroIntervalSeconds() {
+  const value = appConfig.macroRefreshIntervalSeconds;
 
   if (!Number.isFinite(value) || value < 60 * 60) {
     return 24 * 60 * 60;
@@ -67,7 +67,7 @@ function phase2IntervalSeconds() {
   return Math.floor(value);
 }
 
-function latestPersistedPhase2RunAt(db: Database.Database) {
+function latestPersistedMacroRunAt(db: Database.Database) {
   const latestFredSuccess = getLatestSourceRuns(db, {
     source: "fred",
     collectorId: "fred_daily_series",
@@ -77,25 +77,25 @@ function latestPersistedPhase2RunAt(db: Database.Database) {
   return latestFredSuccess?.finishedAt ?? null;
 }
 
-function isPhase2Due(now: Date, db: Database.Database) {
-  if (!appConfig.phase2SchedulerEnabled) {
+function isMacroDue(now: Date, db: Database.Database) {
+  if (!appConfig.macroSchedulerEnabled) {
     return false;
   }
 
-  const latestRunAt = lastPhase2RunAt ?? latestPersistedPhase2RunAt(db);
+  const latestRunAt = lastMacroRunAt ?? latestPersistedMacroRunAt(db);
 
   if (!latestRunAt) {
     return true;
   }
 
-  return now.getTime() - new Date(latestRunAt).getTime() >= phase2IntervalSeconds() * 1000;
+  return now.getTime() - new Date(latestRunAt).getTime() >= macroIntervalSeconds() * 1000;
 }
 
 function sourceRunStatus(status: SchedulerCycleResult["status"]): SourceRunStatus {
   return status === "ok" ? "success" : "failure";
 }
 
-function summarizeRefresh(refresh: Phase1RefreshResult) {
+function summarizeRefresh(refresh: CryptoRefreshResult) {
   return JSON.stringify({
     status: refresh.status,
     collection: {
@@ -116,7 +116,7 @@ function summarizeRefresh(refresh: Phase1RefreshResult) {
   });
 }
 
-function summarizePhase2Refresh(refresh: Phase2RefreshResult | undefined) {
+function summarizeMacroRefresh(refresh: MacroRefreshResult | undefined) {
   if (!refresh) {
     return null;
   }
@@ -144,18 +144,18 @@ function summarizePhase2Refresh(refresh: Phase2RefreshResult | undefined) {
 }
 
 function mergeCycleStatuses(
-  phase1Status: SchedulerCycleResult["status"],
-  phase2Status?: SchedulerCycleResult["status"]
+  cryptoStatus: SchedulerCycleResult["status"],
+  macroStatus?: SchedulerCycleResult["status"]
 ): SchedulerCycleResult["status"] {
-  if (phase1Status === "error" || phase2Status === "error") {
+  if (cryptoStatus === "error" || macroStatus === "error") {
     return "error";
   }
 
-  if (phase1Status === "partial" || phase2Status === "partial") {
+  if (cryptoStatus === "partial" || macroStatus === "partial") {
     return "partial";
   }
 
-  return phase1Status;
+  return cryptoStatus;
 }
 
 export function getSchedulerState(): SchedulerState {
@@ -166,10 +166,10 @@ export function getSchedulerState(): SchedulerState {
     intervalSeconds: intervalSeconds(),
     lastRunAt,
     lastStatus,
-    phase2Enabled: appConfig.phase2SchedulerEnabled,
-    phase2IntervalSeconds: phase2IntervalSeconds(),
-    lastPhase2RunAt,
-    lastPhase2Status
+    macroEnabled: appConfig.macroSchedulerEnabled,
+    macroIntervalSeconds: macroIntervalSeconds(),
+    lastMacroRunAt,
+    lastMacroStatus
   };
 }
 
@@ -177,8 +177,8 @@ export async function runSchedulerCycle(
   options: {
     reason?: string;
     db?: Database.Database;
-    refresh?: () => Promise<Phase1RefreshResult>;
-    phase2Refresh?: () => Promise<Phase2RefreshResult>;
+    refresh?: () => Promise<CryptoRefreshResult>;
+    macroRefresh?: () => Promise<MacroRefreshResult>;
   } = {}
 ): Promise<SchedulerCycleResult> {
   const reason = options.reason ?? "scheduled";
@@ -213,17 +213,17 @@ export async function runSchedulerCycle(
   });
 
   try {
-    const refresh = await (options.refresh ?? runPhase1Refresh)();
-    const phase2Due = isPhase2Due(new Date(startedAt), db);
-    const phase2Refresh = phase2Due
-      ? await (options.phase2Refresh ?? (() => runPhase2Refresh({ db })))()
+    const refresh = await (options.refresh ?? runCryptoRefresh)();
+    const macroDue = isMacroDue(new Date(startedAt), db);
+    const macroRefresh = macroDue
+      ? await (options.macroRefresh ?? (() => runMacroRefresh({ db })))()
       : undefined;
     const finishedAt = new Date().toISOString();
-    const status = mergeCycleStatuses(refresh.status, phase2Refresh?.status);
+    const status = mergeCycleStatuses(refresh.status, macroRefresh?.status);
 
-    if (phase2Refresh) {
-      lastPhase2RunAt = startedAt;
-      lastPhase2Status = phase2Refresh.status;
+    if (macroRefresh) {
+      lastMacroRunAt = startedAt;
+      lastMacroStatus = macroRefresh.status;
     }
 
     updateSourceRun(db, sourceRunId, {
@@ -231,10 +231,10 @@ export async function runSchedulerCycle(
       finishedAt,
       errorMessage: status === "ok" ? null : "Scheduler refresh completed with errors",
       metadataJson: JSON.stringify({
-        phase1: JSON.parse(summarizeRefresh(refresh)),
-        phase2: summarizePhase2Refresh(phase2Refresh),
-        phase2Due,
-        phase2Enabled: appConfig.phase2SchedulerEnabled
+        crypto: JSON.parse(summarizeRefresh(refresh)),
+        macro: summarizeMacroRefresh(macroRefresh),
+        macroDue,
+        macroEnabled: appConfig.macroSchedulerEnabled
       })
     });
 
@@ -247,7 +247,7 @@ export async function runSchedulerCycle(
       reason,
       sourceRunId,
       refresh,
-      phase2Refresh
+      macroRefresh
     };
   } catch (error) {
     const finishedAt = new Date().toISOString();
@@ -304,6 +304,6 @@ export function stopSchedulerForTests() {
   }
 
   running = false;
-  lastPhase2RunAt = null;
-  lastPhase2Status = null;
+  lastMacroRunAt = null;
+  lastMacroStatus = null;
 }

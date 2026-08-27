@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { getCrossMarketWidgets } from "./crossMarketWidgetService";
 import { runFredCollection, type FredCollectionResult } from "./fredCollectionService";
 
-export interface Phase2RefreshOptions {
+export interface MacroRefreshOptions {
   collect?: boolean;
   calculateWidgets?: boolean;
   timeframe?: string;
@@ -11,7 +11,7 @@ export interface Phase2RefreshOptions {
   db?: Database.Database;
 }
 
-export interface Phase2WidgetPersistenceResult {
+export interface CrossMarketWidgetPersistenceResult {
   status: "ok" | "partial" | "error";
   widgetsRun: number;
   widgetsSaved: number;
@@ -19,16 +19,16 @@ export interface Phase2WidgetPersistenceResult {
   updatedAt: string;
 }
 
-export interface Phase2RefreshResult {
+export interface MacroRefreshResult {
   status: "ok" | "partial" | "error";
   collection?: FredCollectionResult;
-  widgetPersistence?: Phase2WidgetPersistenceResult;
+  widgetPersistence?: CrossMarketWidgetPersistenceResult;
 }
 
 function mergeStatuses(
   collectionStatus?: FredCollectionResult["status"],
-  widgetStatus?: Phase2WidgetPersistenceResult["status"]
-): Phase2RefreshResult["status"] {
+  widgetStatus?: CrossMarketWidgetPersistenceResult["status"]
+): MacroRefreshResult["status"] {
   if (collectionStatus === "error" || widgetStatus === "error") {
     return "error";
   }
@@ -40,9 +40,9 @@ function mergeStatuses(
   return "ok";
 }
 
-export async function runPhase2Refresh(
-  options: Phase2RefreshOptions = {}
-): Promise<Phase2RefreshResult> {
+export async function runMacroRefresh(
+  options: MacroRefreshOptions = {}
+): Promise<MacroRefreshResult> {
   const shouldCollect = options.collect !== false;
   const shouldCalculateWidgets = options.calculateWidgets !== false;
   const collection = shouldCollect
@@ -61,7 +61,7 @@ export async function runPhase2Refresh(
         saveResults: true
       })
     : undefined;
-  const widgetPersistence: Phase2WidgetPersistenceResult | undefined = crossMarket
+  const widgetPersistence: CrossMarketWidgetPersistenceResult | undefined = crossMarket
     ? {
         status:
           crossMarket.results.length === 0

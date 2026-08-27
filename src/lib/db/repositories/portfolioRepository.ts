@@ -3,6 +3,7 @@ import type { NewPortfolioItem, PortfolioItemRecord } from "../types";
 
 interface PortfolioItemDbRow {
   id: number;
+  user_id: number;
   symbol: string;
   quantity: number;
   average_cost: number | null;
@@ -17,6 +18,7 @@ interface PortfolioItemDbRow {
 function mapPortfolioItem(row: PortfolioItemDbRow): PortfolioItemRecord {
   return {
     id: row.id,
+    userId: row.user_id,
     symbol: row.symbol,
     quantity: row.quantity,
     averageCost: row.average_cost,
@@ -34,6 +36,7 @@ export function insertPortfolioItem(db: Database.Database, item: NewPortfolioIte
     .prepare(
       `
       INSERT INTO portfolio_items (
+        user_id,
         symbol,
         quantity,
         average_cost,
@@ -43,6 +46,7 @@ export function insertPortfolioItem(db: Database.Database, item: NewPortfolioIte
         include_in_risk
       )
       VALUES (
+        @userId,
         @symbol,
         @quantity,
         @averageCost,
@@ -112,31 +116,20 @@ export function getPortfolioItemById(db: Database.Database, id: number) {
   return row ? mapPortfolioItem(row) : null;
 }
 
-export function listPortfolioItems(db: Database.Database, filters: { symbols?: string[] } = {}) {
+export function listPortfolioItems(db: Database.Database, filters: { userId: number; symbols?: string[] }) {
   const symbols = filters.symbols ?? [];
-
-  if (symbols.length === 0) {
-    const rows = db
-      .prepare(
-        `
-        SELECT *
-        FROM portfolio_items
-        ORDER BY include_in_risk DESC, symbol ASC, id ASC
-      `
-      )
-      .all() as PortfolioItemDbRow[];
-
-    return rows.map(mapPortfolioItem);
-  }
-
   const placeholders = symbols.map((_, index) => `@symbol${index}`).join(", ");
-  const params = Object.fromEntries(symbols.map((symbol, index) => [`symbol${index}`, symbol]));
+  const params = {
+    userId: filters.userId,
+    ...Object.fromEntries(symbols.map((symbol, index) => [`symbol${index}`, symbol]))
+  };
   const rows = db
     .prepare(
       `
       SELECT *
       FROM portfolio_items
-      WHERE symbol IN (${placeholders})
+      WHERE user_id = @userId
+        ${symbols.length > 0 ? `AND symbol IN (${placeholders})` : ""}
       ORDER BY include_in_risk DESC, symbol ASC, id ASC
     `
     )

@@ -31,7 +31,7 @@ Flow:
 ```text
 latest widget_results + derived liquidity result
   + stored market overview metrics
-  + admin cross-market widgets when visible
+  + cross-market widgets when visible
   + latest persisted situation_overviews row
   -> situation overview service
   -> deterministic rules/scoring
@@ -57,7 +57,7 @@ Secondary/risk inputs:
 - `support_resistance_pressure`
 - `liquidations`
 
-Admin cross-market context:
+Cross-market context:
 
 - `risk_regime`
 - `macro_risk_pulse`
@@ -67,7 +67,7 @@ Admin cross-market context:
 - `gold_risk_hedge`
 - `oil_inflation_pressure`
 
-The expected input list follows effective widget visibility. Locked or disabled widgets are not treated as required.
+The expected input list follows effective widget visibility. Disabled widgets are not treated as required.
 
 ## Rules And Scoring
 
@@ -145,7 +145,7 @@ The card preserves the existing dark glass dashboard style and keeps the financi
 
 ## Previous-State Comparison
 
-Previous-state comparison reads the latest persisted `situation_overviews` row for the current local access plan, symbol, and timeframe.
+Previous-state comparison reads the latest persisted `situation_overviews` row for the symbol and timeframe.
 
 Compared fields:
 
@@ -155,7 +155,7 @@ Compared fields:
 - confidence
 - top driver
 
-The service persists a new snapshot when the overview materially changes or when there is no snapshot for that access plan/symbol/timeframe in the last 15 minutes. The compact history API is:
+The service persists a new snapshot when the overview materially changes or when there is no snapshot for that symbol/timeframe in the last 15 minutes. The compact history API is:
 
 ```text
 GET /api/overview/situation/history?symbol=BTCUSDT&timeframe=1h&limit=50
@@ -165,7 +165,7 @@ The history response is designed for timeline UI, not full replay. It includes t
 
 ## Alert Integration
 
-The overview service evaluates enabled local alert rules after each Situation Overview build. Rules are scoped by local access plan, symbol, and timeframe. They can create in-app events for:
+The overview service evaluates enabled local alert rules after each Situation Overview build. Rules from every user are checked for the symbol and timeframe, and each event goes to the rule's owner. They can create in-app events for:
 
 - bias changes
 - risk-level changes
@@ -173,7 +173,7 @@ The overview service evaluates enabled local alert rules after each Situation Ov
 - main driver changes
 - directional score threshold crossings
 
-Alert events are persisted in `alert_events`, deduped while open, and acknowledged through the Alerts workspace or `POST /api/alerts/events/:id/ack`. There are no external notifications, push services, or background queues.
+Alert events are persisted in `alert_events`, deduped while open, and acknowledged through the Alerts page or `POST /api/alerts/events/:id/ack`. There are no external notifications, push services, or background queues.
 
 ## Tests
 
@@ -205,6 +205,6 @@ Fixtures cover:
 - The overview is only as current as the stored widget results.
 - Liquidation event history is locally observed only while runtime is connected.
 - Cross-market inputs use daily proxy data and are admin-visible only in the local access model.
-- Persisted history is local to the SQLite file and separated by local access plan.
+- Persisted history is local to the SQLite file and shared across the instance.
 - The summary is deterministic and rule-based.
 

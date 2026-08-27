@@ -1,21 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import Database from "better-sqlite3";
-import { createAdminSession } from "@/lib/auth/access";
-import { runMigrations } from "@/lib/db/migrations";
+import { AccessError } from "@/lib/auth/access";
+import { createTestDatabase, createTestSession } from "@/lib/auth/testing";
+import { ApiInputError } from "./apiValidation";
 import {
   acknowledgeEventForSession,
   createRuleForSession,
+  deleteRuleForSession,
   evaluateAlertRulesForOverview,
-  listEventsForSession
+  listEventsForSession,
+  listRulesForSession
 } from "./alertService";
 import type { SituationOverview } from "./situationOverview/situationOverview.types";
 
-function createMemoryDatabase() {
-  const db = new Database(":memory:");
-  runMigrations(db);
-  return db;
-}
 
 function overview(overrides: Partial<SituationOverview> = {}): SituationOverview {
   return {
@@ -54,8 +51,8 @@ function overview(overrides: Partial<SituationOverview> = {}): SituationOverview
 
 describe("alert service", () => {
   it("creates explainable events for changed situation state and dedupes open events", () => {
-    const db = createMemoryDatabase();
-    const session = createAdminSession();
+    const db = createTestDatabase();
+    const session = createTestSession(db, "analyst");
 
     createRuleForSession({
       db,
@@ -83,14 +80,12 @@ describe("alert service", () => {
     const first = evaluateAlertRulesForOverview({
       db,
       overview: current,
-      previousOverview: previous,
-      accessPlan: session.plan
+      previousOverview: previous
     });
     const second = evaluateAlertRulesForOverview({
       db,
       overview: current,
-      previousOverview: previous,
-      accessPlan: session.plan
+      previousOverview: previous
     });
 
     assert.equal(first.length, 1);
@@ -99,8 +94,8 @@ describe("alert service", () => {
   });
 
   it("allows acknowledged triggers to fire again", () => {
-    const db = createMemoryDatabase();
-    const session = createAdminSession();
+    const db = createTestDatabase();
+    const session = createTestSession(db, "analyst");
 
     createRuleForSession({
       db,
@@ -128,8 +123,7 @@ describe("alert service", () => {
     evaluateAlertRulesForOverview({
       db,
       overview: current,
-      previousOverview: previous,
-      accessPlan: session.plan
+      previousOverview: previous
     });
     const [event] = listEventsForSession({ db, session });
     assert.ok(event);
@@ -138,11 +132,57 @@ describe("alert service", () => {
     const repeated = evaluateAlertRulesForOverview({
       db,
       overview: current,
-      previousOverview: previous,
-      accessPlan: session.plan
+      previousOverview: previous
     });
 
     assert.equal(repeated.length, 1);
     assert.equal(listEventsForSession({ db, session, includeAcknowledged: true }).length, 2);
+  });
+
+  it("keeps rules and events private to their owner", () => {
+    const db = createTestDatabase();
+    const owner = createTestSession(db, "analyst", "owner@example.com");
+    const other = createTestSession(db, "analyst", "other@example.com");
+    const rule = createRuleForSession({
+      db,
+      session: owner,
+      input: { ruleType: "situation_bias_changed", symbol: "BTCUSDT", timeframe: "1h" }
+    });
+
+    evaluateAlertRulesForOverview({
+      db,
+      overview: overview({
+        changedSincePrevious: [{
+          id: "bias-change",
+          label: "Bias changed",
+          previous: "neutral",
+          current: "bullish",
+          explanation: "Bias moved from neutral to bullish."
+        }]
+      }),
+      previousOverview: overview({ bias: "neutral" })
+    });
+
+    const [event] = listEventsForSession({ db, session: owner });
+    assert.ok(event);
+    assert.equal(listRulesForSession({ db, session: other }).length, 0);
+    assert.equal(listEventsForSession({ db, session: other }).length, 0);
+    assert.throws(() => deleteRuleForSession({ db, session: other, id: rule.id }), ApiInputError);
+    assert.throws(() => acknowledgeEventForSession({ db, session: other, id: event.id }), ApiInputError);
+  });
+
+  it("requires the analyst role", () => {
+    const db = createTestDatabase();
+    const viewer = createTestSession(db, "viewer");
+
+    assert.throws(() => listRulesForSession({ db, session: viewer }), AccessError);
+    assert.throws(
+      () => createRuleForSession({
+        db,
+        session: viewer,
+        input: { ruleType: "risk_level_changed", symbol: "BTCUSDT", timeframe: "1h" }
+      }),
+      AccessError
+    );
   });
 });

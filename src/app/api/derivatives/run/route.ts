@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canAccessSymbol, getSessionFromRequest } from "@/lib/auth/access";
+import { AccessError, getSessionFromRequest, requireRole } from "@/lib/auth/access";
 import { runBinanceDerivativesCollection } from "@/lib/services/derivativesCollectionService";
 
 export const runtime = "nodejs";
@@ -46,19 +46,9 @@ async function readOptionalJson(request: NextRequest): Promise<DerivativesRunReq
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromRequest(request);
+    requireRole(getSessionFromRequest(request), "admin");
     const body = await readOptionalJson(request);
     const symbols = asOptionalStringArray(body.symbols, "symbols");
-
-    if (symbols?.some((symbol) => !canAccessSymbol(session, symbol.toUpperCase()))) {
-      return NextResponse.json(
-        {
-          status: "error",
-          message: "One or more symbols are locked for the current access level"
-        },
-        { status: 403 }
-      );
-    }
 
     const result = await runBinanceDerivativesCollection({
       symbols,
@@ -75,7 +65,7 @@ export async function POST(request: NextRequest) {
         status: "error",
         message: error instanceof Error ? error.message : "Derivatives collection request failed"
       },
-      { status: 400 }
+      { status: error instanceof AccessError ? error.statusCode : 400 }
     );
   }
 }
