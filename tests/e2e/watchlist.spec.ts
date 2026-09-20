@@ -1,9 +1,16 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-// The sidebar is hidden below lg and there is no navigation there yet, so the
-// cases that go through it run once, on desktop. Everything else navigates to
-// /watchlist directly and runs on all three viewports.
-const desktopOnly = (name: string) => `${name} — desktop only`;
+// Below `lg` the sidebar is hidden and the drawer carries the same items, so
+// the navigation case runs on every viewport through whichever one the shell
+// is showing.
+async function navigationFor(page: Page, projectName: string) {
+  if (projectName === "chromium-desktop") {
+    return page.locator("aside");
+  }
+
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  return page.getByRole("dialog", { name: "Navigation" });
+}
 
 async function clearWatchlist(request: APIRequestContext) {
   const response = await request.get("/api/watchlist");
@@ -77,29 +84,35 @@ test("an anonymous visitor is sent to sign in", async ({ browser, baseURL }) => 
   await context.close();
 });
 
-test(desktopOnly("the sidebar item is enabled and navigates for a signed-in viewer"), async ({
+test("the navigation item is enabled and navigates for a signed-in viewer", async ({
   page,
   browser,
   baseURL
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium-desktop", "The sidebar is hidden below lg.");
-
   const invite = await page.request.post("/api/admin/invites", { data: { role: "viewer" } });
   expect(invite.status()).toBe(201);
   const invitePath = ((await invite.json()) as { data: { path: string } }).data.path;
 
-  const context = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  // The new context must inherit the project's viewport, or the shell would
+  // show the desktop sidebar on the small projects.
+  const context = await browser.newContext({
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+    viewport: testInfo.project.use.viewport
+  });
   const viewerPage = await context.newPage();
 
   await viewerPage.goto(invitePath);
-  await viewerPage.getByLabel("Email").fill("watchlist-viewer@example.com");
+  // The case runs on all three projects in parallel, so the account it creates
+  // has to be unique per project.
+  await viewerPage.getByLabel("Email").fill(`watchlist-viewer-${testInfo.project.name}@example.com`);
   await viewerPage.getByLabel("Password").fill("member-password-1");
   await viewerPage.getByRole("button", { name: "Create account" }).click();
   await expect(viewerPage).toHaveURL(/\/dashboard$/);
 
-  const sidebar = viewerPage.locator("aside");
-  await expect(sidebar.getByRole("button", { name: "Portfolio" })).toHaveCount(0);
-  await sidebar.getByRole("button", { name: "Watchlist" }).click();
+  const navigation = await navigationFor(viewerPage, testInfo.project.name);
+  await expect(navigation.getByRole("button", { name: "Portfolio" })).toHaveCount(0);
+  await navigation.getByRole("button", { name: "Watchlist" }).click();
   await expect(viewerPage).toHaveURL(/\/watchlist$/);
   await expect(viewerPage.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
 

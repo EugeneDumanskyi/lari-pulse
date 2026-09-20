@@ -1,17 +1,14 @@
 "use client";
 
 import type { HTMLAttributes, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
-  AlertTriangle,
   BarChart3,
   Bell,
-  CalendarDays,
-  ChevronDown,
   Grid2X2,
   LineChart,
-  LoaderCircle,
   LogIn,
   LogOut,
   LucideIcon,
@@ -24,7 +21,7 @@ import {
   WalletCards,
   X
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LariPulseLogo } from "@/components/brand/LariPulseLogo";
@@ -137,26 +134,6 @@ export function EmptyState({
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-white/64">{description}</p>
     </GlassCard>
-  );
-}
-
-export function ToolbarButton({
-  children,
-  active
-}: {
-  children: ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <button
-      className={cn(
-        "h-12 min-w-16 border-r border-white/10 px-5 text-sm font-semibold text-white/76 transition last:border-r-0 hover:bg-white/12",
-        active && "bg-indigo-300/28 text-white shadow-glow"
-      )}
-      type="button"
-    >
-      {children}
-    </button>
   );
 }
 
@@ -333,6 +310,96 @@ export function DrawerPanel() {
   );
 }
 
+function AppNavList({
+  items,
+  onNavigate
+}: {
+  items: AppNavItem[];
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="space-y-2">
+      {items.filter((item) => !item.hidden).map((item) => (
+        <SidebarNavItem
+          active={item.active}
+          disabled={item.disabled}
+          icon={item.icon}
+          key={item.label}
+          label={item.label}
+          onClick={
+            item.onClick
+              ? () => {
+                  item.onClick?.();
+                  onNavigate?.();
+                }
+              : undefined
+          }
+        />
+      ))}
+    </nav>
+  );
+}
+
+function AccountPanel({ onNavigate }: { onNavigate?: () => void }) {
+  const router = useRouter();
+  const session = useAuthSession();
+  const isSignedIn = session?.isAuthenticated === true;
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    onNavigate?.();
+    router.push("/login");
+    router.refresh();
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm text-white/62">
+      {isSignedIn ? (
+        <>
+          <div className="truncate font-semibold text-white/86" title={session?.email ?? undefined}>
+            {session?.email}
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-white/46">{roleLabel(session?.role ?? null)}</span>
+            <button
+              className="flex items-center gap-1 text-xs font-semibold text-white/62 transition hover:text-white"
+              onClick={() => void signOut()}
+              type="button"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="font-semibold text-white/80">Read-only view</div>
+          <button
+            className="mt-1 flex items-center gap-1 text-xs font-semibold text-sky-100/80 transition hover:text-white"
+            onClick={() => {
+              onNavigate?.();
+              router.push("/login");
+            }}
+            type="button"
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            Sign in
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface AppNavItem {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  hidden?: boolean;
+  onClick?: () => void;
+}
+
 export function AppShell({
   children,
   activeItem = "dashboard"
@@ -344,14 +411,8 @@ export function AppShell({
   const session = useAuthSession();
   const isAnalyst = sessionHasRole(session, "analyst");
   const isSignedIn = session?.isAuthenticated === true;
-  const nav: Array<{
-    icon: LucideIcon;
-    label: string;
-    active: boolean;
-    disabled?: boolean;
-    hidden?: boolean;
-    onClick?: () => void;
-  }> = [
+  const [menuOpen, setMenuOpen] = useState(false);
+  const nav: AppNavItem[] = [
     { icon: Grid2X2, label: "Dashboard", active: activeItem === "dashboard", onClick: () => router.push("/dashboard") },
     { icon: BarChart3, label: "Markets", active: activeItem === "markets", onClick: () => router.push("/markets") },
     { icon: Bell, label: "Alerts", active: activeItem === "alerts", hidden: !isAnalyst, onClick: () => router.push("/alerts") },
@@ -364,162 +425,90 @@ export function AppShell({
     { icon: Settings, label: "Settings", active: activeItem === "settings", hidden: !isSignedIn, onClick: () => router.push("/settings") }
   ];
 
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
-    router.push("/login");
-    router.refresh();
-  }
+  // The drawer is the only navigation below `lg`, so Escape must always be able
+  // to give the page back.
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
 
   return (
     <main className="min-h-screen p-3 text-white md:p-4">
-      <div className="mx-auto flex min-h-[calc(100vh-24px)] max-w-[1620px] overflow-hidden rounded-[28px] border border-white/14 bg-slate-950/22 shadow-[0_0_0_1px_rgba(119,156,255,0.18),0_32px_90px_rgba(0,5,18,0.5)] backdrop-blur-sm">
+      <div className="mx-auto flex min-h-[calc(100vh-24px)] max-w-[1620px] flex-col overflow-hidden rounded-[28px] border border-white/14 bg-slate-950/22 shadow-[0_0_0_1px_rgba(119,156,255,0.18),0_32px_90px_rgba(0,5,18,0.5)] backdrop-blur-sm lg:flex-row">
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3 lg:hidden">
+          <LariPulseLogo />
+          <Button
+            aria-expanded={menuOpen}
+            aria-label="Open navigation"
+            onClick={() => setMenuOpen(true)}
+            size="icon"
+            variant="ghost"
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        </div>
         <aside className="glass-surface hidden w-[236px] shrink-0 rounded-[28px] p-5 lg:flex lg:flex-col">
           <div className="mb-9 px-2">
             <LariPulseLogo />
           </div>
-          <nav className="space-y-2">
-            {nav.filter((item) => !item.hidden).map((item) => (
-              <SidebarNavItem
-                active={item.active}
-                disabled={item.disabled}
-                icon={item.icon}
-                key={item.label}
-                label={item.label}
-                onClick={item.onClick}
-              />
-            ))}
-          </nav>
-          <div className="mt-auto rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm text-white/62">
-            {isSignedIn ? (
-              <>
-                <div className="truncate font-semibold text-white/86" title={session?.email ?? undefined}>
-                  {session?.email}
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <span className="text-xs uppercase tracking-[0.16em] text-white/46">{roleLabel(session?.role ?? null)}</span>
-                  <button
-                    className="flex items-center gap-1 text-xs font-semibold text-white/62 transition hover:text-white"
-                    onClick={() => void signOut()}
-                    type="button"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Sign out
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="font-semibold text-white/80">Read-only view</div>
-                <button
-                  className="mt-1 flex items-center gap-1 text-xs font-semibold text-sky-100/80 transition hover:text-white"
-                  onClick={() => router.push("/login")}
-                  type="button"
-                >
-                  <LogIn className="h-3.5 w-3.5" />
-                  Sign in
-                </button>
-              </>
-            )}
+          <AppNavList items={nav} />
+          <div className="mt-auto">
+            <AccountPanel />
           </div>
         </aside>
         {children}
       </div>
+      <AnimatePresence>
+        {menuOpen ? (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <motion.button
+              animate={{ opacity: 1 }}
+              aria-label="Close navigation"
+              className="absolute inset-0 h-full w-full bg-slate-950/70 backdrop-blur-sm"
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              onClick={() => setMenuOpen(false)}
+              type="button"
+            />
+            <motion.div
+              animate={{ x: 0 }}
+              aria-label="Navigation"
+              aria-modal="true"
+              className="glass-surface absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col rounded-r-[28px] p-5"
+              exit={{ x: "-100%" }}
+              initial={{ x: "-100%" }}
+              role="dialog"
+              transition={{ type: "tween", duration: 0.2 }}
+            >
+              <div className="mb-8 flex items-center justify-between gap-3 px-2">
+                <LariPulseLogo />
+                <Button
+                  aria-label="Close navigation"
+                  onClick={() => setMenuOpen(false)}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              <AppNavList items={nav} onNavigate={() => setMenuOpen(false)} />
+              <div className="mt-auto">
+                <AccountPanel onNavigate={() => setMenuOpen(false)} />
+              </div>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </main>
-  );
-}
-
-export function TopBar() {
-  return (
-    <div className="mb-6 flex items-center justify-between gap-4">
-      <Button className="lg:hidden" size="icon" variant="ghost">
-        <Menu className="h-6 w-6" />
-      </Button>
-      <div className="glass-surface hidden h-12 w-full max-w-[540px] items-center gap-3 rounded-2xl px-4 md:flex">
-        <Search className="h-5 w-5 text-white/72" />
-        <span className="text-white/62">Search markets...</span>
-        <span className="ml-auto rounded-lg bg-white/12 px-2 py-1 text-xs text-white/76">⌘K</span>
-      </div>
-      <div className="ml-auto flex items-center gap-4">
-        <Bell className="h-6 w-6 text-white/82" />
-        <div className="relative flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-white/14 text-sm font-semibold">
-          LP
-          <span className="absolute bottom-1 right-0 h-3 w-3 rounded-full bg-emerald-300 ring-2 ring-slate-900" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function SymbolTabs() {
-  return (
-    <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-      <div className="flex flex-wrap gap-3">
-        {[
-          ["₿", "BTC/USDT"],
-          ["◆", "ETH/USDT"],
-          ["≋", "SOL/USDT"]
-        ].map(([icon, label], index) => (
-          <button
-            className={cn(
-              "glass-surface flex h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold text-white/84",
-              index === 2 && "shadow-glow ring-1 ring-indigo-300/50"
-            )}
-            key={label}
-            type="button"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-base">
-              {icon}
-            </span>
-            {label}
-            <ChevronDown className="h-4 w-4 text-white/52" />
-          </button>
-        ))}
-      </div>
-      <div className="glass-surface flex w-fit overflow-hidden rounded-2xl">
-        {["15m", "1h", "4h", "1d"].map((timeframe) => (
-          <ToolbarButton active={timeframe === "1h"} key={timeframe}>
-            {timeframe}
-          </ToolbarButton>
-        ))}
-        <ToolbarButton>
-          <CalendarDays className="h-5 w-5" />
-        </ToolbarButton>
-      </div>
-    </div>
-  );
-}
-
-export function StaleWarning() {
-  return (
-    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-300/45 bg-amber-500/13 px-5 py-3 text-sm text-amber-100 backdrop-blur-xl md:flex-row md:items-center">
-      <div className="flex items-center gap-3">
-        <AlertTriangle className="h-5 w-5 text-amber-300" />
-        <span>Some market data sources are delayed. SOL/USDT data may be stale.</span>
-      </div>
-      <div className="ml-auto flex items-center gap-4">
-        <Button size="sm" variant="warning">
-          Retry now
-        </Button>
-        <button className="font-semibold text-amber-200 underline underline-offset-4" type="button">
-          View status
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function LoadingToast() {
-  return (
-    <motion.div
-      animate={{ y: 0, opacity: 1 }}
-      className="fixed bottom-6 right-6 z-50 hidden rounded-2xl border border-white/18 bg-slate-900/62 px-8 py-4 shadow-glass backdrop-blur-2xl lg:flex"
-      initial={{ y: 18, opacity: 0 }}
-    >
-      <LoaderCircle className="mr-4 h-7 w-7 animate-spin text-sky-200" />
-      <div>
-        <div className="font-semibold text-white">Refreshing market data...</div>
-        <div className="text-sm text-white/64">This may take a few seconds.</div>
-      </div>
-    </motion.div>
   );
 }

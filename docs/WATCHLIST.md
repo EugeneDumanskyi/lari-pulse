@@ -596,14 +596,13 @@ By file and by case:
 - an anonymous visitor on `/watchlist` lands on
   `/login?next=%2Fwatchlist`
 
-The add/note/reorder/remove case, the duplicate message and the
-anonymous redirect run on all three viewports the suite configures, by
-navigating to `/watchlist` directly. The sidebar case is gated to
-`chromium-desktop` with `test.skip`, as `tests/e2e/roles.spec.ts:4-6`
-gates its own: the `<aside>` is `hidden … lg:flex` and there is no
-navigation below `lg` yet, so a sidebar click cannot pass at 390px or
-768px. Enabling it is part of the roadmap's dead-mock-UI cleanup, not of
-this feature. No API mock is needed — the page calls only
+All four cases run on the three viewports the suite configures. The
+add/note/reorder/remove case, the duplicate message and the anonymous
+redirect navigate to `/watchlist` directly. The navigation case goes
+through whichever navigation the shell is showing — the `<aside>` on
+`chromium-desktop`, the drawer below `lg` — which the dead-mock-UI
+cleanup added; it was gated to `chromium-desktop` while that navigation
+did not exist. No API mock is needed — the page calls only
 `/api/watchlist` and `/api/auth/session`.
 
 ## Open Questions

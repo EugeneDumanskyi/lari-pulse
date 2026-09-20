@@ -6,19 +6,33 @@ pull requests. Nothing is implemented until a pull request lands and
 moves a capability out of that spec's `Not implemented:` list.
 
 Build order: Watchlist has landed, having sat closest to the existing
-portfolio and alert plumbing. The dead mock UI cleanup is next and still
-open — every page, Watchlist included, inherits the missing navigation
-below `lg` — and the three stateless features follow it.
+portfolio and alert plumbing, and the dead mock UI cleanup has followed
+it, so every page now has navigation below `lg`. The three stateless
+features come next and are independent of each other.
 
-## 1. Dead mock UI cleanup
+## 1. Dead mock UI cleanup — landed
 
-`TopBar`, `SymbolTabs`, `StaleWarning` and `LoadingToast` are exported
-from `src/components/dashboard/primitives.tsx` and imported nowhere in
-`src/`: remove them, and decide what real navigation below the `lg`
-breakpoint should be, because the sidebar is `hidden … lg:flex` and the
-only menu button lives inside the unrendered `TopBar`, so there is no
-navigation at all on the mobile and tablet viewports the Playwright
-suite runs. No spec file; one pull request.
+`TopBar`, `SymbolTabs`, `StaleWarning` and `LoadingToast` were exported
+from `src/components/dashboard/primitives.tsx` and imported nowhere, and
+removing `SymbolTabs` orphaned `ToolbarButton`, so all five are gone.
+
+Navigation below `lg` is a drawer in `AppShell`: the sidebar stays
+`hidden … lg:flex`, and under it a header bar carries the logo and an
+`Open navigation` button that opens the same nav list and account panel,
+both now shared between the two rather than duplicated. It closes on
+navigation, on the backdrop and on Escape.
+
+The same pass made the existing chrome actually work. The glass surfaces
+are tuned in one-percent steps — `text-white/62`, `border-white/12`,
+`bg-slate-950/42` — but Tailwind's stock opacity scale only goes in
+fives, so about ninety utilities across the app silently generated
+nothing: text fell back to the inherited colour, borders to the
+near-white default and, worst, form fields lost their background and
+rendered the user agent's white behind `text-white`, which made every
+input on Portfolio and Watchlist unreadable. `tailwind.config.ts` now
+carries whole percents, `:root` declares `color-scheme: dark` so native
+controls follow, and the two `text-current/8x` classes — an alpha on
+`currentColor`, which Tailwind cannot express — became `opacity-8x`.
 
 ## 2. Watchlist — landed
 

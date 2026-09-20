@@ -1,6 +1,18 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
 
+/**
+ * The glass surfaces are tuned in one-percent steps (`text-white/62`,
+ * `border-white/12`). Tailwind's stock opacity scale only goes in fives, so
+ * every off-scale utility silently generated nothing: text fell back to the
+ * inherited colour, borders to the near-white default, and — worst — form
+ * fields lost their background and rendered the user agent's white behind
+ * `text-white`. Every whole percent is a real step instead.
+ */
+const opacity = Object.fromEntries(
+  Array.from({ length: 101 }, (_, value) => [String(value), String(value / 100)])
+);
+
 const config: Config = {
   darkMode: ["class"],
   content: [
@@ -10,6 +22,7 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      opacity,
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
