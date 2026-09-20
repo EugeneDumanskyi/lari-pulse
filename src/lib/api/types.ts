@@ -257,6 +257,7 @@ export type {
   SituationConfidence,
   SituationOverview,
   SituationDriver,
+  SituationDriverDirection,
   SituationWatchCondition,
   SituationDataWarning,
   SituationChange,
@@ -294,3 +295,16 @@ export type {
   WatchlistItemPatch,
   WatchlistSituationApi
 } from "@/lib/services/watchlistContextService";
+
+export type {
+  ScanCondition,
+  ScanConditionResult,
+  ScanFilter,
+  ScanMatch,
+  ScanMatchMode,
+  ScanOperator,
+  ScanResultItem,
+  ScanRunResponse,
+  ScanRunSummary,
+  SituationChangeId
+} from "@/lib/services/scanService";

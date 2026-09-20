@@ -117,3 +117,25 @@ export function parseRouteId(value: string, label = "id") {
 
   return id;
 }
+
+/**
+ * Transport-level check for a query parameter carrying JSON. It bounds the
+ * string before parsing and asserts nothing about the parsed shape, which is
+ * the calling service's job. `URLSearchParams.get` has already decoded the
+ * value, so decoding again here would corrupt any value holding a literal `%`.
+ */
+export function validateJsonQueryParam(value: string | null, name: string, maxLength: number): unknown {
+  if (!value) {
+    throw new ApiInputError(`${name} is required`);
+  }
+
+  if (value.length > maxLength) {
+    throw new ApiInputError(`${name} must be at most ${maxLength} characters`);
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new ApiInputError(`${name} is not valid JSON`);
+  }
+}

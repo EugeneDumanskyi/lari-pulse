@@ -7,8 +7,9 @@ moves a capability out of that spec's `Not implemented:` list.
 
 Build order: Watchlist has landed, having sat closest to the existing
 portfolio and alert plumbing, and the dead mock UI cleanup has followed
-it, so every page now has navigation below `lg`. The three stateless
-features come next and are independent of each other.
+it, so every page now has navigation below `lg`. Scans has landed next,
+as the first of the three stateless features; Insights and Reports remain
+and are independent of each other.
 
 ## 1. Dead mock UI cleanup — landed
 
@@ -51,17 +52,27 @@ active Binance pairs only, timeframes are the four collected ones, and
 
 See [WATCHLIST.md](WATCHLIST.md).
 
-## 3. Scans
+## 3. Scans — landed
 
 Runs an explicit, user-stated filter across the configured symbols and
 timeframes and returns the pairs whose stored deterministic state
-matches, naming the conditions that matched. Complements
-[Opportunity Radar](OPPORTUNITY_RADAR.md) rather than replacing it.
-Minimum role: `viewer`. Adds no table; it reads stored results. Its
-specification is complete — the closed condition vocabulary, the route
-and its validation, the response shape, the service signatures, the UI
-states and the test cases are all pinned down — so it is ready to
-implement.
+matches, naming the conditions that matched and, under `match: "any"`,
+the ones that did not. It complements
+[Opportunity Radar](OPPORTUNITY_RADAR.md) rather than replacing it:
+Radar answers "what deserves attention right now", and Scans answers
+"which markets match the conditions I named". Minimum role: `viewer`,
+including the public-dashboard anonymous visitor, since a scan owns no
+rows.
+
+It added no table and no widget, reading state only through
+`getSituationOverview` with alert evaluation off. The condition
+vocabulary is closed and flat — eleven condition types validated by an
+exhaustive switch, at most twelve conditions per filter — so there is no
+expression language to maintain, and every condition carries a fixed
+human label so the matched and unmatched lists read as sentences rather
+than echoed JSON. `items` is a set in a deterministic order, never a
+ranking; an empty result set is explained by the per-condition counts in
+`summary.conditionSummary` rather than by a near-miss list.
 
 See [SCANS.md](SCANS.md).
 
