@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { createSession, createUser, updateUser } from "@/lib/db/repositories/accountRepository";
 import { updateAppSettings } from "@/lib/db/repositories/appSettingsRepository";
 import { upsertWidgetSettings } from "@/lib/db/repositories/widgetSettingsRepository";
+import { ApiInputError, validateSymbolAccess } from "@/lib/services/apiValidation";
 import { AccessError, filterVisibleWidgets, getSessionFromToken, hasRole, requireRole, requireUser } from "./access";
 import { LoginThrottle } from "./loginThrottle";
 import { anonymousTestSession, createTestDatabase, createTestSession } from "./testing";
@@ -141,5 +142,46 @@ describe("login throttle", () => {
 
     assert.ok(throttle.retryAfterSeconds("10.0.0.2", "new@example.com", 0) > 0);
     assert.equal(throttle.retryAfterSeconds("10.0.0.3", "new@example.com", 0), 0);
+  });
+});
+
+describe("scan access", () => {
+  function scanStatus(action: () => unknown) {
+    try {
+      action();
+      return 200;
+    } catch (error) {
+      if (error instanceof AccessError || error instanceof ApiInputError) {
+        return error.statusCode;
+      }
+
+      throw error;
+    }
+  }
+
+  it("refuses an anonymous visitor while the public dashboard is off", () => {
+    const db = createTestDatabase();
+
+    assert.equal(scanStatus(() => requireRole(anonymousTestSession(db), "viewer")), 401);
+  });
+
+  it("lets the public-dashboard anonymous viewer run a scan", () => {
+    const db = createTestDatabase();
+    updateAppSettings(db, { publicDashboard: true });
+    const anonymous = anonymousTestSession(db);
+
+    // A scan owns no rows, so `requireRole` is the right gate and this visitor
+    // passes it where `requireUser` would not.
+    assert.equal(anonymous.userId, null);
+    assert.equal(scanStatus(() => requireRole(anonymous, "viewer")), 200);
+  });
+
+  it("rejects a requested symbol outside the session's accessible symbols", () => {
+    const db = createTestDatabase();
+    const viewer = createTestSession(db, "viewer");
+    const narrowed = { ...viewer, accessibleSymbols: ["BTCUSDT"] };
+
+    assert.equal(scanStatus(() => validateSymbolAccess("BTCUSDT", narrowed)), 200);
+    assert.equal(scanStatus(() => validateSymbolAccess("ETHUSDT", narrowed)), 400);
   });
 });

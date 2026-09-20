@@ -482,6 +482,20 @@ Alert rules are evaluated from Situation Overview state in the service layer, ne
 
 `opportunityRadarService` scores accessible symbol/timeframe pairs from deterministic Situation Overview fields into a setup score and a separate attention score. Radar scans never trigger alert events. Results are ranked context, not trade instructions, targets or sizing.
 
+## Scans
+
+`scanService` runs a user-stated filter — a flat array of typed conditions
+over fields the Situation Overview already computes, plus one `match` of
+`all` or `any` — across the requested symbol and timeframe pairs and returns
+the pairs whose stored state satisfies it, naming the conditions each pair
+matched and, under `match: "any"`, the ones it missed. `parseScanFilter`
+validates the closed vocabulary, `evaluateScanFilter` is pure, and `runScan`
+reads state only through `getSituationOverview` with `evaluateAlerts: false`.
+It adds no table, ranks nothing and orders results by the requested symbol
+order then the `collectionTimeframes` order. Pairs with no stored pair-scoped
+widget result are reported in `summary.pairsWithoutState` rather than
+rejected. See [SCANS.md](SCANS.md).
+
 ## Chart Overlays
 
 `chartOverlayService` extracts descriptive levels from visible widget details (support/resistance zones, the largest observed liquidation) and from persisted watch conditions that name a price. Components render the overlays; they never parse widget details.
@@ -542,6 +556,7 @@ GET  /api/overview/situation?symbol=BTCUSDT&timeframe=1h
 GET  /api/overview/situation/history?symbol=BTCUSDT&timeframe=1h
 GET  /api/market/overlays?symbol=BTCUSDT&timeframe=1h
 GET  /api/radar/opportunities
+GET  /api/scans/run?filter=<encoded JSON>&symbols=BTCUSDT&timeframes=1h,4h&match=all&limit=50
 GET|POST|PUT|DELETE /api/alerts/rules[/:id]
 GET  /api/alerts/events
 POST /api/alerts/events/:id/ack

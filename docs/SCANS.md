@@ -22,15 +22,16 @@ of them is a change to this file first.
 
 Implemented:
 
-- Nothing yet.
-
-Not implemented:
-
-- `src/lib/services/scanService.ts`.
+- `src/lib/services/scanService.ts` — `parseScanFilter`,
+  `evaluateScanFilter` and `runScan`, with every type below.
 - `GET /api/scans/run` (`src/app/api/scans/run/route.ts`).
 - `validateJsonQueryParam` in `src/lib/services/apiValidation.ts`.
 - `/scans` page and the enabled sidebar item.
 - `src/components/scans/ScansFoundation.tsx`.
+
+Not implemented:
+
+- Nothing from this specification.
 
 Out of scope:
 
@@ -151,6 +152,38 @@ freshness         label   State is fresh
 changed           label   Bias or main driver changed since the previous
                           snapshot
                   actual  no recorded change
+```
+
+The variants of the same types, in the same voice. Several values in one
+set join with commas and a final `or`, so a label reads as a sentence
+whatever its arity.
+
+```text
+main_driver       label   Trend Strength is a main driver
+                          (position "any")
+                  actual  Momentum Exhaustion, Trend Strength
+                          (position "any": every main driver, in order)
+                  actual  no main drivers
+driver_direction  actual  no driver
+watch_condition   label   Any watch condition is present
+                          (neither ids nor minimumSeverity)
+                  label   A warning or higher watch condition from
+                          liquidations-local-history is absent
+                          (ids given, and state "absent")
+                  actual  Liquidation event history
+                          (the labels of the conditions that passed the
+                          filter, comma separated)
+conflicts         label   At least one conflicting signal
+                          (state "any")
+                  label   Conflicting signals are above 2
+                          (the operator form)
+                  actual  1 conflicting signal
+freshness         label   Freshness is not checked
+                          (state "any")
+                  actual  fresh
+                  actual  partial
+changed           actual  bias, main driver
+                          (the changes recorded on the pair)
 ```
 
 The details each type pins down:
@@ -502,7 +535,22 @@ source widgets has status `used` or `stale`.
 pair-scoped crypto widgets and `context` for the instance-wide
 cross-market ones (`situationOverview.rules.ts:524-534`), so requiring a
 non-`context` contribution is what distinguishes "this pair has data" from
-"the instance has macro data and this pair has nothing".
+"the instance has macro data and this pair has nothing". One exception to
+that description: `derivatives_pressure` is pair-scoped but appears in
+neither `PRIMARY_WIDGET_IDS` nor `SECONDARY_WIDGET_IDS`, so
+`sourceContribution` returns `context` for it and a pair whose only stored
+result is derivatives pressure counts as being without state.
+
+One widget is excluded from that check. `listLatestWidgetResultsWithDerivedLiquidity`
+(`src/lib/services/widgetResultService.ts:82-115`) synthesizes a
+`liquidations` result for **every** pair on every read, whether or not that
+pair has a single stored liquidation event, and `liquidations` is a
+`secondary` contribution. Counting it would make every configured pair
+examined and leave `pairsWithoutState` permanently empty, which is the
+opposite of what the rest of this section asks for, so `hasPairState`
+ignores `liquidations` and reads the other non-`context` source widgets.
+The cost is narrow and stated here: a pair whose only pair-scoped state is
+real liquidation activity counts as being without state.
 
 Everything else goes into `summary.pairsWithoutState` as
 `{ symbol, timeframe }` and is left out of `items` and out of the
