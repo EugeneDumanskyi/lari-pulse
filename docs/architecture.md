@@ -238,7 +238,8 @@ derivatives_metrics   normalized public futures context per symbol and period
 situation_overviews   persisted Situation Overview snapshots
 alert_rules           alert rules, owned by a user
 alert_events          alert events, deduplicated while open, owned by the rule's user
-portfolio_items       holdings and watchlist entries, owned by a user
+portfolio_items       holdings and watched exposure, owned by a user
+watchlist_items       followed symbol and timeframe pairs, ordered, owned by a user
 users                 accounts: email, scrypt password hash, role (admin | analyst | viewer), status
 sessions              session token hashes with expiry, user agent and IP
 invites               one-time invite token hashes with role, optional email and expiry
@@ -489,6 +490,10 @@ Alert rules are evaluated from Situation Overview state in the service layer, ne
 
 `portfolioContextService` enriches local `portfolio_items` with the latest stored price, market value, unrealized P/L, concentration, the latest 1h Situation Overview, its strongest driver and active watch conditions. It stores no exchange keys, balances, positions or orders, and widget engines stay portfolio-agnostic.
 
+## Watchlist
+
+`watchlistContextService` reads the `watchlist_items` a user follows and pairs each one with the price and Situation Overview already stored for **its own** symbol and timeframe — no cross-timeframe fallback, no collection, no external call, no new calculation. It adds one mechanical `isStale` flag per row, set when stored state is older than three intervals of that row's timeframe. Rows are ordered by an explicit `position`, and every query is scoped by `user_id` in SQL. See [WATCHLIST.md](WATCHLIST.md).
+
 ## Access and Visibility
 
 Accounts live in `users` and `sessions`. Passwords use scrypt (`src/lib/auth/password.ts`); session tokens are random, sent as an HTTP-only cookie and stored only as SHA-256 hashes. `src/lib/auth/access.ts` resolves the cookie into an `AuthSession` with the user's role.
@@ -542,6 +547,7 @@ GET  /api/alerts/events
 POST /api/alerts/events/:id/ack
 POST /api/alerts/evaluate
 GET|POST|PUT|DELETE /api/portfolio[/:id]
+GET|POST|PUT|DELETE /api/watchlist[/:id]
 POST /api/derivatives/run
 GET  /api/markets
 GET  /api/markets/overview?symbol=BTCUSDT

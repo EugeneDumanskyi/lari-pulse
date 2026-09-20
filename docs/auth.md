@@ -6,7 +6,7 @@ LariPulse is built for self-hosting. One install is one organization: market dat
 
 | Role | Can do |
 | --- | --- |
-| `viewer` | Read the dashboard, markets, radar, chart overlays and Situation Overview |
+| `viewer` | Read the dashboard, markets, radar, chart overlays and Situation Overview, and keep a private watchlist |
 | `analyst` | Everything a viewer can, plus a private portfolio and private alert rules |
 | `admin` | Everything, plus users, invites, instance settings, widget visibility and manual collection runs |
 
@@ -15,7 +15,9 @@ Roles are ranked `viewer < analyst < admin`. Services check them with `requireRo
 - an anonymous visitor gets **401 Sign in required**;
 - a signed-in user below the required role gets **403**.
 
-Portfolio items, alert rules and alert events carry a `user_id`. Every query filters by the signed-in user, so one analyst never sees another analyst's holdings or alerts, and admins don't browse them either.
+Portfolio items, alert rules, alert events and watchlist items carry a `user_id`. Every query filters by the signed-in user, so one analyst never sees another analyst's holdings or alerts, and admins don't browse them either.
+
+`/watchlist` is the first user-owned data available at `viewer`, so it needs one check `requireRole` cannot make. With `public_dashboard` on, an anonymous visitor is handed `role: "viewer"` with `userId: null`, which passes `requireRole(session, "viewer")` but owns no rows. Services for user-owned data at `viewer` therefore call `requireUser(session, "viewer")`, which throws 401 again on the null `userId`, and the page guard uses `requirePageSession("/watchlist", { signedIn: true })` so such a visitor is redirected to `/login?next=%2Fwatchlist` instead of reaching an empty page. The watchlist repository goes one step further than the portfolio one and scopes **every** statement by `user_id` in SQL, including the single-row read, so another user's id is a 404 rather than a row a future caller could forget to check.
 
 ## First run
 

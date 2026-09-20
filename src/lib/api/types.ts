@@ -286,3 +286,11 @@ export type {
   PortfolioItemInput,
   PortfolioSituationApi
 } from "@/lib/services/portfolioContextService";
+
+export type {
+  WatchlistContextApi,
+  WatchlistItemApi,
+  WatchlistItemInput,
+  WatchlistItemPatch,
+  WatchlistSituationApi
+} from "@/lib/services/watchlistContextService";

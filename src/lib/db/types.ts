@@ -239,6 +239,19 @@ export interface PortfolioItemRecord {
 
 export type NewPortfolioItem = Omit<PortfolioItemRecord, "id" | "createdAt" | "updatedAt">;
 
+export interface WatchlistItemRecord {
+  id: number;
+  userId: number;
+  symbol: string;
+  timeframe: string;
+  note: string | null;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NewWatchlistItem = Omit<WatchlistItemRecord, "id" | "createdAt" | "updatedAt">;
+
 export type StoredLiquidationSide = "long" | "short";
 export type LiquidationSide = "long_liquidated" | "short_liquidated";
 

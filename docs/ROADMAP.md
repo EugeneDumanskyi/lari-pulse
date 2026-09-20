@@ -5,10 +5,10 @@ specification that can be expanded and then implemented through normal
 pull requests. Nothing is implemented until a pull request lands and
 moves a capability out of that spec's `Not implemented:` list.
 
-Build order: the dead mock UI cleanup comes first because every new page
-inherits the missing navigation below `lg`; Watchlist comes next because
-it sits closest to the existing portfolio and alert plumbing, and the
-three stateless features follow it.
+Build order: Watchlist has landed, having sat closest to the existing
+portfolio and alert plumbing. The dead mock UI cleanup is next and still
+open — every page, Watchlist included, inherits the missing navigation
+below `lg` — and the three stateless features follow it.
 
 ## 1. Dead mock UI cleanup
 
@@ -20,20 +20,20 @@ only menu button lives inside the unrendered `TopBar`, so there is no
 navigation at all on the mobile and tablet viewports the Playwright
 suite runs. No spec file; one pull request.
 
-## 2. Watchlist
+## 2. Watchlist — landed
 
 One place to keep the symbol and timeframe pairs a user follows, showing
 each pair's existing deterministic state side by side. Minimum role:
 signed-in `viewer`, which makes it the first user-owned data available
-below `analyst`. Adds one user-owned table, `watchlist_items`, so
-landing it needs a local database reset.
+below `analyst`. It adds one user-owned table, `watchlist_items`, which
+needed no database reset: `schemaSql` runs as `CREATE TABLE IF NOT
+EXISTS` on every start, so a purely additive table appears on an existing
+database by itself. Only a change to an existing table's shape needs the
+delete-and-`npm run db:init` dance.
 
-Specified in full: columns and types, the four route payloads with their
-status codes, repository and service signatures, the UI states including
-empty and error, and the test cases by name. Ordering is manual through
-an explicit `position` column, symbols are the active Binance pairs only,
-and `portfolio_items` is untouched. It can be implemented without further
-design work.
+Ordering is manual through an explicit `position` column, symbols are the
+active Binance pairs only, timeframes are the four collected ones, and
+`portfolio_items` is untouched.
 
 See [WATCHLIST.md](WATCHLIST.md).
 

@@ -1,4 +1,5 @@
 import { appConfig } from "@/lib/config/appConfig";
+import { collectionTimeframes } from "@/lib/config/timeframes";
 import { widgetRegistry } from "@/lib/widgets/registry";
 import type { AuthSession } from "@/lib/auth/access";
 import { canAccessSymbol, requireRole } from "@/lib/auth/access";
@@ -42,6 +43,16 @@ export function validateOptionalTimeframe(timeframe: string | null) {
   const normalized = timeframe.trim();
 
   if (!appConfig.timeframes.includes(normalized as (typeof appConfig.timeframes)[number])) {
+    throw new ApiInputError(`Unsupported timeframe: ${timeframe}`);
+  }
+
+  return normalized;
+}
+
+export function validateCollectionTimeframe(timeframe: string) {
+  const normalized = timeframe?.trim();
+
+  if (!collectionTimeframes.includes(normalized as (typeof collectionTimeframes)[number])) {
     throw new ApiInputError(`Unsupported timeframe: ${timeframe}`);
   }
 
