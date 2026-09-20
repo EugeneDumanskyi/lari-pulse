@@ -222,7 +222,7 @@ function DashboardWarnings({ warnings }: { warnings: DashboardWarning[] }) {
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <div className="font-semibold text-white">{warning.title}</div>
-            <div className="text-current/80">{formatMessage(warning.message)}</div>
+            <div className="opacity-80">{formatMessage(warning.message)}</div>
           </div>
         </div>
       ))}
@@ -883,7 +883,7 @@ function WidgetResultCardBack({
                 key={warning.id}
               >
                 <div className="font-semibold text-white">{warning.title}</div>
-                <div className="text-sm text-current/82">{formatMessage(warning.message)}</div>
+                <div className="text-sm opacity-82">{formatMessage(warning.message)}</div>
               </div>
             ))}
           </section>

@@ -17,6 +17,11 @@
   --accent-foreground: 216 45% 97%;
   --destructive: 2 90% 67%;
   --destructive-foreground: 216 45% 97%;
+
+  /* The app is dark-mode-first, so native controls — select popups, autofill,
+     scrollbars, spinners — must follow. Without this they render light on the
+     glass surfaces. */
+  color-scheme: dark;
 }
 
 * {

@@ -601,7 +601,7 @@ Situation Overview card
 Cross-market section
 ```
 
-The sidebar also opens Markets (a read-only directory of every configured series with freshness, source notes and a compact chart), Radar, Alerts, Portfolio and Settings.
+The sidebar also opens Markets (a read-only directory of every configured series with freshness, source notes and a compact chart), Radar, Alerts, Portfolio, Watchlist and Settings. It is `hidden … lg:flex`; below `lg` the same items and the same account panel live in a drawer behind the header bar's `Open navigation` button, which closes on navigation, on the backdrop and on Escape. Both are rendered by `AppShell` in `src/components/dashboard/primitives.tsx` from one nav list, so an item is never added to only one of them.
 
 Each widget card shows title, score, direction, confidence, severity, short summary, updated time and a details button. The details view shows the full summary, indicator values, source references, timestamps and any conflicts or warnings. Stale or missing data is always visible.
 
