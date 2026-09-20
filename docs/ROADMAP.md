@@ -28,6 +28,13 @@ signed-in `viewer`, which makes it the first user-owned data available
 below `analyst`. Adds one user-owned table, `watchlist_items`, so
 landing it needs a local database reset.
 
+Specified in full: columns and types, the four route payloads with their
+status codes, repository and service signatures, the UI states including
+empty and error, and the test cases by name. Ordering is manual through
+an explicit `position` column, symbols are the active Binance pairs only,
+and `portfolio_items` is untouched. It can be implemented without further
+design work.
+
 See [WATCHLIST.md](WATCHLIST.md).
 
 ## 3. Scans
