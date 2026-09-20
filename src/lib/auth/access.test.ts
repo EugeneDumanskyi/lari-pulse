@@ -63,6 +63,26 @@ describe("role-based access", () => {
     assert.ok(anonymous.accessibleSymbols.includes("NASDAQ100"));
   });
 
+  it("guards user-owned rows with requireUser, where requireRole alone would pass", () => {
+    const db = createTestDatabase();
+    const anonymous = anonymousTestSession(db);
+    const viewer = createTestSession(db, "viewer");
+
+    // Anonymous with no public dashboard: 401 before the role is even ranked.
+    assert.equal(statusOf(() => requireUser(anonymous, "viewer")), 401);
+
+    updateAppSettings(db, { publicDashboard: true });
+    const publicViewer = anonymousTestSession(db);
+
+    assert.equal(publicViewer.userId, null);
+    assert.equal(statusOf(() => requireRole(publicViewer, "viewer")), 200);
+    assert.equal(statusOf(() => requireUser(publicViewer, "viewer")), 401);
+
+    // A signed-in viewer owns rows at viewer, but is still below analyst.
+    assert.equal(requireUser(viewer, "viewer").userId, viewer.userId);
+    assert.equal(statusOf(() => requireUser(viewer, "analyst")), 403);
+  });
+
   it("resolves the same instance-wide symbols and widgets for every role", () => {
     const db = createTestDatabase();
     upsertWidgetSettings(db, [{ widgetId: "volume_confirmation", isEnabled: false }]);

@@ -338,7 +338,7 @@ export function AppShell({
   activeItem = "dashboard"
 }: {
   children: ReactNode;
-  activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "settings";
+  activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "watchlist" | "settings";
 }) {
   const router = useRouter();
   const session = useAuthSession();
@@ -357,7 +357,7 @@ export function AppShell({
     { icon: Bell, label: "Alerts", active: activeItem === "alerts", hidden: !isAnalyst, onClick: () => router.push("/alerts") },
     { icon: Radar, label: "Radar", active: activeItem === "radar", onClick: () => router.push("/radar") },
     { icon: WalletCards, label: "Portfolio", active: activeItem === "portfolio", hidden: !isAnalyst, onClick: () => router.push("/portfolio") },
-    { icon: Star, label: "Watchlist", active: false, disabled: true },
+    { icon: Star, label: "Watchlist", active: activeItem === "watchlist", hidden: !isSignedIn, onClick: () => router.push("/watchlist") },
     { icon: Search, label: "Scans", active: false, disabled: true },
     { icon: Sparkles, label: "Insights", active: false, disabled: true },
     { icon: Activity, label: "Reports", active: false, disabled: true },

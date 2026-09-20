@@ -8,19 +8,13 @@ It is not a portfolio: no holdings, no quantities, no cost basis, no
 profit and loss, and no list of things to buy or sell. Nothing on the
 page is an instruction to act.
 
-This document is a full specification of unbuilt behaviour. It is
-written to be implemented without further design work: the table, the
-routes, the function signatures, the UI states and the test names below
-are the contract, and a change to any of them is a change to this file
-first.
+This document specifies the shipped feature. The table, the routes, the
+function signatures, the UI states and the test names below are the
+contract, and a change to any of them is a change to this file first.
 
 ## Scope
 
 Implemented:
-
-- Nothing yet.
-
-Not implemented:
 
 - `watchlist_items` SQLite table.
 - `src/lib/db/repositories/watchlistRepository.ts`.
@@ -90,10 +84,14 @@ export interface WatchlistItemRecord {
 export type NewWatchlistItem = Omit<WatchlistItemRecord, "id" | "createdAt" | "updatedAt">;
 ```
 
-There are no migrations. Landing this table means stopping the app,
-deleting `data/laripulse.sqlite` plus its `-wal` and `-shm` files and
-running `npm run db:init`, and the pull request that touches `schema.ts`
-says so.
+There are no migrations, but this table needed no database reset.
+`runMigrations` (`src/lib/db/migrations.ts:59`) execs the whole of
+`schemaSql` — every statement a `CREATE TABLE IF NOT EXISTS` — on every
+start, so a purely additive table appears on an existing database by
+itself. The delete-and-`npm run db:init` rule applies to a schema change
+that alters an existing table's shape, not to one that only adds a table
+or an index; a pull request touching `schema.ts` still says which of the
+two it is.
 
 `assertCompatibleSchema` in `src/lib/db/migrations.ts` needs no new
 clause. It rejects only the named legacy shapes — a plan column on
@@ -261,7 +259,14 @@ export interface WatchlistItemPatch {
           "confidence": "medium",
           "score": 51,
           "riskScore": 44,
-          "strongestDriver": { "id": "trend_strength", "label": "Trend Strength", "detail": "…" },
+          "strongestDriver": {
+            "id": "trend_strength",
+            "label": "Trend Strength",
+            "direction": "neutral",
+            "strength": "medium",
+            "explanation": "Moving averages are flat across the window.",
+            "sourceWidget": "trend_strength"
+          },
           "generatedAt": "2026-09-19T11:01:12.000Z"
         },
         "watchConditions": [
@@ -288,6 +293,12 @@ export interface WatchlistItemPatch {
   }
 }
 ```
+
+`strongestDriver` is the first entry of the overview's stored
+`mainDriversJson`, typed as `SituationDriver`
+(`src/lib/services/situationOverview/situationOverview.types.ts:27-34`)
+and `null` when there is none — the same shape the portfolio context
+returns (`portfolioContextService.ts:241`).
 
 `user_id` never leaves the service; `items[]` carries the stored columns
 minus that one, plus the enrichment fields. `situation` is `null` when no
@@ -585,19 +596,22 @@ By file and by case:
 - an anonymous visitor on `/watchlist` lands on
   `/login?next=%2Fwatchlist`
 
-Runs across the mobile, tablet and desktop viewports the suite already
-configures, with the market API mocked.
+The add/note/reorder/remove case, the duplicate message and the
+anonymous redirect run on all three viewports the suite configures, by
+navigating to `/watchlist` directly. The sidebar case is gated to
+`chromium-desktop` with `test.skip`, as `tests/e2e/roles.spec.ts:4-6`
+gates its own: the `<aside>` is `hidden … lg:flex` and there is no
+navigation below `lg` yet, so a sidebar click cannot pass at 390px or
+768px. Enabling it is part of the roadmap's dead-mock-UI cleanup, not of
+this feature. No API mock is needed — the page calls only
+`/api/watchlist` and `/api/auth/session`.
 
 ## Open Questions
 
-- `schemaSql` runs as `CREATE TABLE IF NOT EXISTS` on every start
-  (`src/lib/db/migrations.ts`), so a purely additive table appears on an
-  existing database with no reset. Does the standing "delete the database
-  and re-init" note still apply to additive-only schema changes, or does
-  the project want a narrower rule that distinguishes them?
 - Should the dashboard gain a Watchlist callout for the selected symbol,
   mirroring `getPortfolioCalloutForSymbol`? Out of scope as specified
   above; it would be a small follow-on.
-- Is there a cap on rows per user? Enrichment costs one candle read and
-  one overview read per row, so a hundred rows is a hundred indexed
-  point reads on every page load.
+- Is there a cap on rows per user? Still open, and still unbuilt:
+  enrichment costs one candle read and one overview read per row, so a
+  hundred rows is a hundred indexed point reads on every page load. The
+  shipped feature imposes no limit.

@@ -188,6 +188,19 @@ CREATE TABLE IF NOT EXISTS portfolio_items (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS watchlist_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  symbol TEXT NOT NULL,
+  timeframe TEXT NOT NULL,
+  note TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(user_id, symbol, timeframe)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -278,6 +291,9 @@ CREATE INDEX IF NOT EXISTS idx_alert_events_rule_trigger_ack
 
 CREATE INDEX IF NOT EXISTS idx_portfolio_items_user_symbol
   ON portfolio_items(user_id, symbol);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_items_user_position
+  ON watchlist_items(user_id, position, id);
 
 CREATE INDEX IF NOT EXISTS idx_users_email_status
   ON users(email, status);
