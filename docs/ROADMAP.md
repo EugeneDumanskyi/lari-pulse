@@ -57,7 +57,11 @@ Runs an explicit, user-stated filter across the configured symbols and
 timeframes and returns the pairs whose stored deterministic state
 matches, naming the conditions that matched. Complements
 [Opportunity Radar](OPPORTUNITY_RADAR.md) rather than replacing it.
-Minimum role: `viewer`. Adds no table; it reads stored results.
+Minimum role: `viewer`. Adds no table; it reads stored results. Its
+specification is complete — the closed condition vocabulary, the route
+and its validation, the response shape, the service signatures, the UI
+states and the test cases are all pinned down — so it is ready to
+implement.
 
 See [SCANS.md](SCANS.md).
 
