@@ -114,6 +114,7 @@ Further reading:
 - [docs/architecture.md](docs/architecture.md): layers, schema, widget contract and API list
 - [docs/widgets.md](docs/widgets.md): every widget, its inputs and rules
 - [docs/auth.md](docs/auth.md): accounts, roles and access
+- [docs/ROADMAP.md](docs/ROADMAP.md): what is planned and not yet built
 - Feature docs: [Situation Overview](docs/SITUATION_OVERVIEW.md), [Alerts](docs/ALERTS.md), [Opportunity Radar](docs/OPPORTUNITY_RADAR.md), [Chart Overlays](docs/CHART_OVERLAYS.md), [Liquidations](docs/LIQUIDATIONS_WIDGET.md), [Derivatives](docs/DERIVATIVES_CONTEXT.md), [Portfolio](docs/PORTFOLIO.md)
 
 ## Development
