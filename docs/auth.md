@@ -6,7 +6,7 @@ LariPulse is built for self-hosting. One install is one organization: market dat
 
 | Role | Can do |
 | --- | --- |
-| `viewer` | Read the dashboard, markets, radar, chart overlays and Situation Overview, and keep a private watchlist |
+| `viewer` | Read the dashboard, markets, radar, scans, insights, chart overlays and Situation Overview, and keep a private watchlist |
 | `analyst` | Everything a viewer can, plus a private portfolio and private alert rules |
 | `admin` | Everything, plus users, invites, instance settings, widget visibility and manual collection runs |
 
@@ -47,6 +47,8 @@ An admin can switch **Open sign-up** on under **Settings → Instance**. Anyone 
 ## Managing users
 
 From **Settings → Users & Invites** an admin can change a user's role, disable or re-enable the account, or delete it. Disabling or deleting signs the user out everywhere. Deleting a user also deletes their portfolio and alerts.
+
+`/insights` reads instance-wide situation snapshots plus, for an analyst, that analyst's own alert events, and it takes the opposite route. The request needs `viewer` and nothing more, and the page guard is `requirePageSession("/insights")` with no `signedIn: true`, so a public-dashboard anonymous visitor reaches it. The one personal section, `alert-activity`, needs `analyst` and a signed-in `userId`; when the session has neither, the section comes back with `coverage: "omitted"` and a line saying so, and the request still answers 200. A page that is seven parts market content does not become a 403 because of its eighth part, and the alert rule itself is not lowered to meet it.
 
 The instance always keeps at least one active admin: you cannot demote, disable or delete the last one, and you cannot delete your own account.
 

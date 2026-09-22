@@ -308,3 +308,18 @@ export type {
   ScanRunSummary,
   SituationChangeId
 } from "@/lib/services/scanService";
+
+export type {
+  BuildInsightSectionsInput,
+  InsightAlertEvent,
+  InsightLine,
+  InsightRange,
+  InsightSection,
+  InsightSectionCategory,
+  InsightSectionCoverage,
+  InsightSectionId,
+  InsightSnapshot,
+  InsightSourceRows,
+  InsightWindow,
+  InsightsResponse
+} from "@/lib/services/insights/insights.types";

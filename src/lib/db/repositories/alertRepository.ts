@@ -321,3 +321,52 @@ export function acknowledgeAlertEvent(db: Database.Database, id: number) {
   const row = db.prepare("SELECT * FROM alert_events WHERE id = ?").get(id) as AlertEventDbRow | undefined;
   return row ? mapAlertEvent(row) : null;
 }
+
+/**
+ * One user's events inside a closed `created_at` interval. `from` and `to`
+ * arrive already formatted as `YYYY-MM-DD HH:MM:SS`, which is what the
+ * `datetime('now')` column default stores.
+ */
+export function listAlertEventsInRange(
+  db: Database.Database,
+  filters: { userId: number; from: string; to: string; limit?: number }
+) {
+  const rows = db
+    .prepare(
+      `
+      SELECT *
+      FROM alert_events
+      WHERE user_id = @userId
+        AND created_at >= @from
+        AND created_at <= @to
+      ORDER BY created_at DESC, id DESC
+      LIMIT @limit
+    `
+    )
+    .all({
+      ...filters,
+      limit: filters.limit ?? 500
+    }) as AlertEventDbRow[];
+
+  return rows.map(mapAlertEvent);
+}
+
+/** How many rows the window holds, for the notice a truncated read prints. */
+export function countAlertEventsInRange(
+  db: Database.Database,
+  filters: { userId: number; from: string; to: string }
+) {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS total
+      FROM alert_events
+      WHERE user_id = @userId
+        AND created_at >= @from
+        AND created_at <= @to
+    `
+    )
+    .get(filters) as { total: number };
+
+  return row.total;
+}

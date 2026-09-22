@@ -557,6 +557,7 @@ GET  /api/overview/situation/history?symbol=BTCUSDT&timeframe=1h
 GET  /api/market/overlays?symbol=BTCUSDT&timeframe=1h
 GET  /api/radar/opportunities
 GET  /api/scans/run?filter=<encoded JSON>&symbols=BTCUSDT&timeframes=1h,4h&match=all&limit=50
+GET  /api/insights?symbol=BTCUSDT&timeframe=1h&range=7d
 GET|POST|PUT|DELETE /api/alerts/rules[/:id]
 GET  /api/alerts/events
 POST /api/alerts/events/:id/ack

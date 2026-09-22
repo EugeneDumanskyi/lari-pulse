@@ -29,19 +29,20 @@ a change to any of them is a change to this file first.
 
 Implemented:
 
-- Nothing yet.
-
-Not implemented:
-
 - `src/lib/services/insights/insights.types.ts`,
   `insights.rules.ts` and `insights.service.ts`.
-- `listSituationOverviewsInRange` in
+- `listSituationOverviewsInRange` and `countSituationOverviewsInRange` in
   `src/lib/db/repositories/situationOverviewRepository.ts`.
-- `listAlertEventsInRange` in
+- `listAlertEventsInRange` and `countAlertEventsInRange` in
   `src/lib/db/repositories/alertRepository.ts`.
 - `GET /api/insights` (`src/app/api/insights/route.ts`).
 - `/insights` page and the enabled sidebar item.
 - `src/components/insights/InsightsFoundation.tsx`.
+- The eight sections and every template below.
+- `src/lib/services/insights/insights.rules.test.ts`,
+  `insights.service.test.ts`, the two repository test additions, the
+  `insights access` block in `src/lib/auth/access.test.ts`, and
+  `tests/e2e/insights.spec.ts` with `insights.fixtures.ts`.
 
 Out of scope:
 
@@ -152,11 +153,13 @@ situationOverviewBound(at: Date)  // at.toISOString()
 alertEventBound(at: Date)         // at.toISOString().slice(0, 19).replace("T", " ")
 ```
 
-`alertEventBound` truncates sub-second precision, so the lower bound
-rounds down and the window is up to one second wider on the alert side
-than on the snapshot side. That is stated rather than corrected: padding
-the bound to hide it would trade a known sub-second difference for an
-unknown one.
+`alertEventBound` truncates sub-second precision, and it truncates at
+both ends. The lower bound rounds down, so the window is up to one
+second **wider** on the alert side; the upper bound rounds down too, so
+it is up to one second **narrower**, and an event created inside the
+current second can fall outside the window it was raised in. That is
+stated rather than corrected: padding either bound to hide it would
+trade a known sub-second difference for an unknown one.
 
 **`new Date("2026-09-19 11:01:12")` parses as local time.** The string
 has no zone marker, so every runtime reads it in the host's zone, and a
@@ -232,6 +235,32 @@ its own rule, below.
 
 `coverage` is per section and always present, so a client never has to
 infer from an empty `lines` array why a section said nothing.
+
+Each of the six therefore carries one line of its own in the two states
+it cannot report in, so the array is never empty:
+
+```text
+bias-insufficient       Only 2 snapshots were stored in this window, fewer
+                        than the 3 needed to report bias transitions.
+bias-empty              No situation snapshot was stored in this window, so
+                        no bias transition can be reported.
+risk-insufficient       … fewer than the 3 needed to report risk level
+                        transitions.
+risk-empty              … so no risk level transition can be reported.
+drivers-insufficient    … fewer than the 3 needed to report recurring drivers.
+drivers-empty           … so no recurring driver can be reported.
+conflicts-insufficient  … fewer than the 3 needed to report persistent
+                        conflicts.
+conflicts-empty         … so no persistent conflict can be reported.
+watch-insufficient      … fewer than the 3 needed to report watch conditions.
+watch-empty             … so no watch condition can be reported.
+coverage-insufficient   … fewer than the 3 needed to report data coverage.
+coverage-empty          … so no data coverage can be reported.
+```
+
+`Only 1 snapshot was` / `Only 2 snapshots were` pluralises the way
+`window-insufficient` does. `sourceRows` on an `insufficient` line
+carries the one or two ids that do exist; on an `empty` line it is `[]`.
 
 ```text
 reported       rows were read and the finding is stated, including
@@ -721,10 +750,19 @@ parameters, calls one service function, returns `okJson(...)`, and wraps
 the handler in `try`/`catch` with `apiErrorJson`. No aggregation, no
 template, no repository import.
 
-**Repositories** — two additive read functions, below. No aggregation in
-SQL: no `GROUP BY`, no `COUNT`, no window function. The repository
-returns rows; the pure layer counts them. Pushing the counting into SQL
+**Repositories** — two additive read functions, below, and a `COUNT`
+beside each. No feature aggregation in SQL: no `GROUP BY`, no window
+function, and nothing a section's text is derived from. The repository
+returns rows; the pure layer counts them. Pushing that counting into SQL
 would put the feature's rules somewhere the rules test cannot reach.
+
+The two `COUNT` reads are the exception that proves the line. A
+truncation notice has to say how many rows it left out, and that number
+is not derivable from a capped list. `countSituationOverviewsInRange`
+and `countAlertEventsInRange` take the same filters as the list reads
+and run **only** when a list came back at exactly its cap, so an
+ordinary window costs one statement per table. A row count for a notice
+is not a feature rule.
 
 **Components** — render `section.title`, `section.coverage` and
 `line.text`. **No component composes a sentence**, pluralises a noun,
@@ -785,6 +823,21 @@ WHERE user_id = @userId
   AND created_at <= @to
 ORDER BY created_at DESC, id DESC
 LIMIT @limit
+```
+
+Each is paired with a count over the same filters, used only when a list
+came back at exactly its cap:
+
+```ts
+countSituationOverviewsInRange(
+  db: Database.Database,
+  filters: { symbol: string; timeframe: string; from: string; to: string }
+): number
+
+countAlertEventsInRange(
+  db: Database.Database,
+  filters: { userId: number; from: string; to: string }
+): number
 ```
 
 Both sit beside the existing filtered reads —
@@ -1327,6 +1380,8 @@ string, not a substring.
 - coverage values: 0 snapshots gives the six snapshot sections `empty`
   and `window-coverage` `reported`; 2 gives them `insufficient`; 3 gives
   them `reported`
+- the twelve `insufficient` / `empty` lines, one per snapshot section per
+  state, asserted as full strings with their `sourceRows`
 - `bias-transitions` over a fixed series with two transitions, asserting
   both lines, their ids, their `values` and their `sourceRows`, in
   oldest-first order
@@ -1459,8 +1514,11 @@ route, and `docs/auth.md` with the `alert-activity` role rule.
 - No model, no generated wording, no paraphrase. Every string a user
   reads comes from the template table in this document, and a new
   sentence is a change to this document first.
-- No aggregation in SQL and none in React. The repository returns rows,
-  `insights.rules.ts` counts them, the component renders `line.text`.
+- No feature aggregation in SQL and none in React. The repository
+  returns rows, `insights.rules.ts` counts them, the component renders
+  `line.text`. The one `COUNT` per table exists to say how many rows a
+  truncated read left out, runs only when a read hit its cap, and no
+  section's finding is derived from it.
 - No write. Not a snapshot, not an alert event, not a cache. Insights
   never calls `getSituationOverview` and never touches `widget_results`.
 - No cross-table timestamp comparison, and no `new Date()` on a value
