@@ -6,7 +6,7 @@ LariPulse is built for self-hosting. One install is one organization: market dat
 
 | Role | Can do |
 | --- | --- |
-| `viewer` | Read the dashboard, markets, radar, scans, insights, chart overlays and Situation Overview, and keep a private watchlist |
+| `viewer` | Read the dashboard, markets, radar, scans, insights, reports, chart overlays and Situation Overview, and keep a private watchlist |
 | `analyst` | Everything a viewer can, plus a private portfolio and private alert rules |
 | `admin` | Everything, plus users, invites, instance settings, widget visibility and manual collection runs |
 
@@ -14,6 +14,8 @@ Roles are ranked `viewer < analyst < admin`. Services check them with `requireRo
 
 - an anonymous visitor gets **401 Sign in required**;
 - a signed-in user below the required role gets **403**.
+
+A report is composed per section rather than per request. `generateReport` opens with `requireRole(session, "viewer")`, and the four market sections — situation, widgets, insights and radar — read instance-wide state, so a public-dashboard anonymous visitor is a legitimate caller. The two personal sections resolve their reader separately with `hasRole(session, "analyst") && session.userId !== null`, and a session that fails it gets those sections back with `status: "omitted"` and one line saying why, not a 403 on the whole request. Naming an unreadable section explicitly in `sections=` is omitted the same way, so turning a section on never turns a working request into a failing one. Reports writes no query of its own against `portfolio_items` or `alert_events`: it calls `getPortfolioContext` and `listEventsForSession`, which filter by the signed-in user in their repositories.
 
 Portfolio items, alert rules, alert events and watchlist items carry a `user_id`. Every query filters by the signed-in user, so one analyst never sees another analyst's holdings or alerts, and admins don't browse them either.
 
