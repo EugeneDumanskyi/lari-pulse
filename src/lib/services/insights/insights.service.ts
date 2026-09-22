@@ -56,6 +56,19 @@ const rangeMs: Record<InsightRange, number> = {
 const defaultRange: InsightRange = "7d";
 
 /**
+ * The one definition of what each range means. Reports composes a window of
+ * its own for its header and for every section it carries, so the arithmetic
+ * is exported rather than duplicated — a second table would drift the first
+ * time one of the two features gained a range.
+ */
+export function windowForRange(range: InsightRange, now: Date): InsightWindow {
+  return {
+    from: new Date(now.getTime() - rangeMs[range]).toISOString(),
+    to: now.toISOString()
+  };
+}
+
+/**
  * A bound is formatted per table, never once and reused. `generated_at` holds
  * an ISO string; `created_at` takes the `datetime('now')` default, which is
  * UTC with a space separator, no `T` and no zone marker.
@@ -141,11 +154,8 @@ export function getInsights(options: GetInsightsOptions): InsightsResponse {
 
   const db = options.db ?? getDatabase();
   const now = options.now ?? new Date();
-  const from = new Date(now.getTime() - rangeMs[range]);
-  const requestedWindow: InsightWindow = {
-    from: from.toISOString(),
-    to: now.toISOString()
-  };
+  const requestedWindow = windowForRange(range, now);
+  const from = new Date(requestedWindow.from);
   const snapshotFilters = {
     symbol,
     timeframe,

@@ -323,3 +323,18 @@ export type {
   InsightWindow,
   InsightsResponse
 } from "@/lib/services/insights/insights.types";
+
+export type {
+  BuildReportDocumentInput,
+  GeneratedReport,
+  ReportDocument,
+  ReportEntry,
+  ReportFact,
+  ReportFormat,
+  ReportScope,
+  ReportScopePair,
+  ReportSection,
+  ReportSectionCategory,
+  ReportSectionId,
+  ReportSectionStatus
+} from "@/lib/services/reports/reports.types";

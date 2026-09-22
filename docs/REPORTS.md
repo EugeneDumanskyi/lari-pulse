@@ -32,18 +32,15 @@ this file first.
 
 Implemented:
 
-- Nothing yet.
-
-Not implemented:
-
 - `src/lib/services/reports/reports.types.ts`,
   `reports.serialize.ts` and `reports.service.ts`.
 - `windowForRange` exported from
   `src/lib/services/insights/insights.service.ts`, where the window
-  arithmetic is currently module-private.
-- `GET /api/reports` (`src/app/api/reports/route.ts`).
-- `GET /api/reports/download`
-  (`src/app/api/reports/download/route.ts`).
+  arithmetic used to be module-private.
+- `GET /api/reports` (`src/app/api/reports/route.ts`) and
+  `GET /api/reports/download`
+  (`src/app/api/reports/download/route.ts`), sharing their parameter
+  parsing through `src/app/api/reports/reportParams.ts`.
 - `/reports` page and the enabled sidebar item.
 - `src/components/reports/ReportsFoundation.tsx`.
 - The six sections, the three formats and every template below.
@@ -51,6 +48,12 @@ Not implemented:
   `reports.service.test.ts`, the `reports access` block in
   `src/lib/auth/access.test.ts`, and `tests/e2e/reports.spec.ts` with
   `reports.fixtures.ts`.
+
+Not implemented:
+
+- Nothing from this specification. The open items below are the
+  maintainer questions under [Open Questions](#open-questions), not
+  gaps against it.
 
 Out of scope:
 
@@ -1433,6 +1436,45 @@ response, and `docs/auth.md` with the per-section role rule.
   a report handed to someone carries it too.
 - Nothing rendered, returned or serialized is phrased as a prediction, a
   recommendation, an entry, an exit, a price target or a position size.
+
+## Decisions The Specification Left Open
+
+Five things this document did not pin, decided in the implementing pull
+request and recorded here so the contract stays complete.
+
+- **Widget confidence renders as a word.** `WidgetResultApi.confidence`
+  is a number and the worked example above reads `confidence medium`,
+  so the `widgets` section renders lowercase `high` / `medium` / `low`
+  on the cut-offs the dashboard's own `confidenceLabel`
+  (`src/components/dashboard/DashboardFoundation.tsx:132`) uses —
+  `>= 0.74`, `>= 0.5`, else low — as named constants in
+  `reports.service.ts`. Lowercase, so it reads as the bias and risk
+  words beside it.
+- **The `insights` fact shape.** Two fixed facts, `Snapshots` and
+  `Covered window`, then one fact per carried section, with the
+  section's `title` as the label and its lines joined by a space as the
+  value. `buildInsightSections` never emits an empty `lines`, so each
+  of the seven carried sections yields exactly one fact. A null
+  `coveredWindow` renders `none`.
+- **When a section is `empty`.** `situation` and `insights` always
+  produce facts, so they are `included` whenever they ran. `widgets` is
+  `empty` only when no covered pair has a result; a pair without one
+  beside pairs that have them keeps its entry and a "Nothing has been
+  collected for this pair." fact. `radar` is empty when `items` is
+  empty, `portfolio` when `summary.itemCount` is 0, and `alerts` when
+  no event falls inside the window. Each empty section's `note` says
+  what was looked for.
+- **Enum wording and number precision.** An underscore becomes a space,
+  the way Insights renders one, so `strong_bullish` reads
+  `strong bullish`. Scores are integers, market values and percents
+  carry two decimals and quantities four.
+- **The alerts read stays `listEventsForSession`.** `listAlertEventsInRange`
+  exists and Insights uses it, but the guarantee this document makes —
+  that Reports writes no query of its own against `alert_events` — is
+  what picks the service call with the window selected inside Reports.
+  The selection compares instants rather than strings, because the
+  normalised `Z` form and the window's `.000Z` form do not sort against
+  each other.
 
 ## Open Questions
 

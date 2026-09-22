@@ -558,6 +558,8 @@ GET  /api/market/overlays?symbol=BTCUSDT&timeframe=1h
 GET  /api/radar/opportunities
 GET  /api/scans/run?filter=<encoded JSON>&symbols=BTCUSDT&timeframes=1h,4h&match=all&limit=50
 GET  /api/insights?symbol=BTCUSDT&timeframe=1h&range=7d
+GET  /api/reports?symbols=BTCUSDT&timeframes=1h&range=7d&sections=situation,insights&format=markdown
+GET  /api/reports/download?symbols=BTCUSDT&timeframes=1h&format=csv
 GET|POST|PUT|DELETE /api/alerts/rules[/:id]
 GET  /api/alerts/events
 POST /api/alerts/events/:id/ack
@@ -584,6 +586,8 @@ POST /api/collect/run
 ```
 
 Responses are typed and never expose raw Binance payloads. Query parameters are validated.
+
+`/api/reports/download` is the one route whose **success** response is not wrapped by `okJson`: it returns the serialized report as the whole body, with `Content-Type`, `Content-Disposition` and `Cache-Control: no-store`, because a downloaded `{ status, data }` envelope is a JSON file containing a report rather than the report. Its failures still go through `apiErrorJson` and stay wrapped, so a client checks the status code rather than the shape. `/api/reports` returns the same report under the usual wrapper, with both the serialized `body` and the `document` it came from.
 
 ## Scheduler
 

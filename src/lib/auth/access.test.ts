@@ -223,3 +223,41 @@ describe("insights access", () => {
     assert.equal(hasRole(anonymous, "analyst"), false);
   });
 });
+
+describe("reports access", () => {
+  it("refuses an anonymous visitor while the public dashboard is off", () => {
+    const db = createTestDatabase();
+
+    assert.equal(statusOf(() => requireRole(anonymousTestSession(db), "viewer")), 401);
+  });
+
+  it("refuses a signed-in session below viewer", () => {
+    const db = createTestDatabase();
+    const viewer = createTestSession(db, "viewer");
+    // No role below viewer exists today; pinning the path makes adding one
+    // fail loudly here instead of silently widening the page.
+    const belowViewer = { ...viewer, role: null, isAuthenticated: true };
+
+    assert.equal(statusOf(() => requireRole(belowViewer, "viewer")), 403);
+  });
+
+  it("lets the public-dashboard anonymous viewer compose the market sections", () => {
+    const db = createTestDatabase();
+    updateAppSettings(db, { publicDashboard: true });
+    const anonymous = anonymousTestSession(db);
+
+    assert.equal(anonymous.userId, null);
+    assert.equal(statusOf(() => requireRole(anonymous, "viewer")), 200);
+  });
+
+  it("keeps the two personal sections out of that session rather than failing the request", () => {
+    const db = createTestDatabase();
+    updateAppSettings(db, { publicDashboard: true });
+    const anonymous = anonymousTestSession(db);
+
+    // `requireUser` is what `portfolio` and `alerts` would need, and this
+    // session fails it, which is why both are omitted and not a 403.
+    assert.notEqual(statusOf(() => requireUser(anonymous, "analyst")), 200);
+    assert.equal(hasRole(anonymous, "analyst"), false);
+  });
+});
