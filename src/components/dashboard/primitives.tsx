@@ -141,23 +141,19 @@ export function SidebarNavItem({
   icon: Icon,
   label,
   active,
-  disabled,
   onClick
 }: {
   icon: LucideIcon;
   label: string;
   active?: boolean;
-  disabled?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
       className={cn(
         "flex h-12 w-full items-center gap-4 rounded-2xl px-4 text-left text-sm text-white/82 transition hover:bg-white/10",
-        active && "border border-white/20 bg-white/16 text-white shadow-glass",
-        disabled && "cursor-not-allowed opacity-42 hover:bg-transparent"
+        active && "border border-white/20 bg-white/16 text-white shadow-glass"
       )}
-      disabled={disabled}
       onClick={onClick}
       type="button"
     >
@@ -322,7 +318,6 @@ function AppNavList({
       {items.filter((item) => !item.hidden).map((item) => (
         <SidebarNavItem
           active={item.active}
-          disabled={item.disabled}
           icon={item.icon}
           key={item.label}
           label={item.label}
@@ -395,7 +390,6 @@ interface AppNavItem {
   icon: LucideIcon;
   label: string;
   active: boolean;
-  disabled?: boolean;
   hidden?: boolean;
   onClick?: () => void;
 }
