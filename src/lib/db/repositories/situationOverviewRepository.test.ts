@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { runMigrations } from "@/lib/db/migrations";
 import {
+  countSituationOverviewsInRange,
   getLatestSituationOverview,
   insertSituationOverview,
-  listSituationOverviewHistory
+  listSituationOverviewHistory,
+  listSituationOverviewsInRange
 } from "./situationOverviewRepository";
 
 function createMemoryDatabase() {
@@ -66,6 +68,70 @@ describe("situation overview repository", () => {
     assert.deepEqual(
       history.map((item) => item.generatedAt),
       ["2026-06-01T10:15:00.000Z", "2026-06-01T10:00:00.000Z"]
+    );
+  });
+
+  it("reads a window with both bounds inclusive", () => {
+    const db = createMemoryDatabase();
+
+    insertSituationOverview(db, overview("2026-06-01T09:59:59.999Z"));
+    insertSituationOverview(db, overview("2026-06-01T10:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T11:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T12:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T12:00:00.001Z"));
+
+    const window = {
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      from: "2026-06-01T10:00:00.000Z",
+      to: "2026-06-01T12:00:00.000Z"
+    };
+
+    assert.deepEqual(
+      listSituationOverviewsInRange(db, window).map((item) => item.generatedAt),
+      ["2026-06-01T12:00:00.000Z", "2026-06-01T11:00:00.000Z", "2026-06-01T10:00:00.000Z"]
+    );
+    assert.equal(countSituationOverviewsInRange(db, window), 3);
+  });
+
+  it("filters the window by symbol and timeframe", () => {
+    const db = createMemoryDatabase();
+
+    insertSituationOverview(db, overview("2026-06-01T10:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T10:30:00.000Z", { timeframe: "4h" }));
+    insertSituationOverview(db, overview("2026-06-01T10:45:00.000Z", { symbol: "ETHUSDT" }));
+
+    const rows = listSituationOverviewsInRange(db, {
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      from: "2026-06-01T00:00:00.000Z",
+      to: "2026-06-02T00:00:00.000Z"
+    });
+
+    assert.deepEqual(
+      rows.map((item) => item.generatedAt),
+      ["2026-06-01T10:00:00.000Z"]
+    );
+  });
+
+  it("orders the window newest-first and drops the oldest at the limit", () => {
+    const db = createMemoryDatabase();
+
+    insertSituationOverview(db, overview("2026-06-01T10:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T11:00:00.000Z"));
+    insertSituationOverview(db, overview("2026-06-01T12:00:00.000Z"));
+
+    const rows = listSituationOverviewsInRange(db, {
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      from: "2026-06-01T00:00:00.000Z",
+      to: "2026-06-02T00:00:00.000Z",
+      limit: 2
+    });
+
+    assert.deepEqual(
+      rows.map((item) => item.generatedAt),
+      ["2026-06-01T12:00:00.000Z", "2026-06-01T11:00:00.000Z"]
     );
   });
 });

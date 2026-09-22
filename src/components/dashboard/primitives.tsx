@@ -405,7 +405,7 @@ export function AppShell({
   activeItem = "dashboard"
 }: {
   children: ReactNode;
-  activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "watchlist" | "scans" | "settings";
+  activeItem?: "dashboard" | "markets" | "alerts" | "radar" | "portfolio" | "watchlist" | "scans" | "insights" | "settings";
 }) {
   const router = useRouter();
   const session = useAuthSession();
@@ -420,7 +420,7 @@ export function AppShell({
     { icon: WalletCards, label: "Portfolio", active: activeItem === "portfolio", hidden: !isAnalyst, onClick: () => router.push("/portfolio") },
     { icon: Star, label: "Watchlist", active: activeItem === "watchlist", hidden: !isSignedIn, onClick: () => router.push("/watchlist") },
     { icon: Search, label: "Scans", active: activeItem === "scans", onClick: () => router.push("/scans") },
-    { icon: Sparkles, label: "Insights", active: false, disabled: true },
+    { icon: Sparkles, label: "Insights", active: activeItem === "insights", onClick: () => router.push("/insights") },
     { icon: Activity, label: "Reports", active: false, disabled: true },
     { icon: Settings, label: "Settings", active: activeItem === "settings", hidden: !isSignedIn, onClick: () => router.push("/settings") }
   ];

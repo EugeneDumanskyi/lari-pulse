@@ -138,3 +138,54 @@ export function listSituationOverviewHistory(
 
   return rows.map(mapSituationOverview);
 }
+
+/**
+ * Snapshots inside a closed `generated_at` interval. `from` and `to` are
+ * already-formatted ISO strings: the caller owns the formatting, because
+ * `situation_overviews` and `alert_events` store time in different shapes.
+ */
+export function listSituationOverviewsInRange(
+  db: Database.Database,
+  filters: { symbol: string; timeframe: string; from: string; to: string; limit?: number }
+) {
+  const rows = db
+    .prepare(
+      `
+      SELECT *
+      FROM situation_overviews
+      WHERE symbol = @symbol
+        AND timeframe = @timeframe
+        AND generated_at >= @from
+        AND generated_at <= @to
+      ORDER BY generated_at DESC, id DESC
+      LIMIT @limit
+    `
+    )
+    .all({
+      ...filters,
+      limit: filters.limit ?? 5000
+    }) as SituationOverviewDbRow[];
+
+  return rows.map(mapSituationOverview);
+}
+
+/** How many rows the window holds, for the notice a truncated read prints. */
+export function countSituationOverviewsInRange(
+  db: Database.Database,
+  filters: { symbol: string; timeframe: string; from: string; to: string }
+) {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS total
+      FROM situation_overviews
+      WHERE symbol = @symbol
+        AND timeframe = @timeframe
+        AND generated_at >= @from
+        AND generated_at <= @to
+    `
+    )
+    .get(filters) as { total: number };
+
+  return row.total;
+}
