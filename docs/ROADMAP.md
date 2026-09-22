@@ -1,15 +1,18 @@
 # Roadmap
 
-What is planned and not yet built. Each feature below links a skeleton
-specification that can be expanded and then implemented through normal
-pull requests. Nothing is implemented until a pull request lands and
-moves a capability out of that spec's `Not implemented:` list.
+What is planned and not yet built. Each feature below links its own
+specification, written before any code and taken to implementation
+depth before the pull request that builds it. Nothing is implemented
+until a pull request lands and moves a capability out of that spec's
+`Not implemented:` list.
 
 Build order: Watchlist has landed, having sat closest to the existing
 portfolio and alert plumbing, and the dead mock UI cleanup has followed
 it, so every page now has navigation below `lg`. Scans has landed next,
-as the first of the three stateless features; Insights and Reports remain
-and are independent of each other.
+as the first of the three stateless features. Insights is specified to
+implementation depth and is the next to build; Reports comes last, since
+it renders stored state into a document and Insights is the feature that
+works out what a window of that state says.
 
 ## 1. Dead mock UI cleanup — landed
 
@@ -76,13 +79,31 @@ ranking; an empty result set is explained by the per-condition counts in
 
 See [SCANS.md](SCANS.md).
 
-## 4. Insights
+## 4. Insights — specified
 
 A deterministic read of what changed across a window, assembled from
-already persisted snapshots: bias and risk transitions, recurring
-drivers, persistent conflicts and the alert events raised. Minimum role:
-`viewer` for instance-wide content, with user-owned sections filtered by
-the signed-in user. Adds no table.
+already persisted snapshots. Eight sections, always all eight, each with
+its own coverage: window coverage, bias transitions, risk transitions,
+recurring drivers, persistent conflicts, watch conditions, data coverage
+and alert activity. Every sentence is a template over stored values and
+every line names the rows it came from. It is the only one of the
+stateless features that reads a range of rows rather than the latest
+state.
+
+Minimum role: `viewer`, including the public-dashboard anonymous
+visitor. Alert activity is the one user-owned section, needs `analyst`,
+and comes back omitted with a line saying so rather than failing the
+request, so the sidebar item takes no `hidden`.
+
+It adds no table, no column and no index, and unlike [Scans](SCANS.md)
+it writes nothing at all — it never calls `getSituationOverview`, so it
+carries none of that builder's snapshot-write side effect. It adds two
+additive repository reads, `listSituationOverviewsInRange` and
+`listAlertEventsInRange`, because neither existing list function can
+express a window. Three snapshots are the minimum before a window is
+summarized; below that the sections report the shortage instead. The two
+tables store timestamps in two different formats, which the spec pins as
+the one thing that would make the feature silently wrong.
 
 See [INSIGHTS.md](INSIGHTS.md).
 
