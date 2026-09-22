@@ -9,10 +9,10 @@ until a pull request lands and moves a capability out of that spec's
 Build order: Watchlist has landed, having sat closest to the existing
 portfolio and alert plumbing, and the dead mock UI cleanup has followed
 it, so every page now has navigation below `lg`. Scans has landed next,
-as the first of the three stateless features. Insights is specified to
-implementation depth and is the next to build; Reports comes last, since
-it renders stored state into a document and Insights is the feature that
-works out what a window of that state says.
+as the first of the three stateless features, and Insights after it.
+Reports is the one feature left, and it comes last by design: it
+composes what the other surfaces already produce, so every one of its
+sources had to exist before it could be specified against them.
 
 ## 1. Dead mock UI cleanup — landed
 
@@ -79,7 +79,7 @@ ranking; an empty result set is explained by the per-condition counts in
 
 See [SCANS.md](SCANS.md).
 
-## 4. Insights — specified
+## 4. Insights — landed
 
 A deterministic read of what changed across a window, assembled from
 already persisted snapshots. Eight sections, always all eight, each with
@@ -95,23 +95,52 @@ visitor. Alert activity is the one user-owned section, needs `analyst`,
 and comes back omitted with a line saying so rather than failing the
 request, so the sidebar item takes no `hidden`.
 
-It adds no table, no column and no index, and unlike [Scans](SCANS.md)
+It added no table, no column and no index, and unlike [Scans](SCANS.md)
 it writes nothing at all — it never calls `getSituationOverview`, so it
-carries none of that builder's snapshot-write side effect. It adds two
+carries none of that builder's snapshot-write side effect. It added two
 additive repository reads, `listSituationOverviewsInRange` and
-`listAlertEventsInRange`, because neither existing list function can
+`listAlertEventsInRange`, because neither existing list function could
 express a window. Three snapshots are the minimum before a window is
 summarized; below that the sections report the shortage instead. The two
-tables store timestamps in two different formats, which the spec pins as
-the one thing that would make the feature silently wrong.
+tables store timestamps in two different formats, which the spec pinned
+as the one thing that would have made the feature silently wrong.
 
 See [INSIGHTS.md](INSIGHTS.md).
 
-## 5. Reports
+## 5. Reports — specified
 
-Renders a chosen window of stored state into one self-contained document
-in a plain local format the user can keep or hand to someone. Minimum
-role: `viewer` for market sections, `analyst` for sections drawing on
-portfolio or alert data. Adds no table.
+Composes one self-contained document out of state the app has already
+computed, over a chosen scope and a chosen window, and hands it back as
+a file. Six sections, each one existing call: `situation` from
+`getSituationOverview`, `widgets` from
+`listLatestWidgetResultsWithDerivedLiquidity`, `insights` from
+`getInsights`, `radar` from `getOpportunityRadar`, `portfolio` from
+`getPortfolioContext` and `alerts` from `listEventsForSession`. The
+`insights` read is what makes a report describe a window rather than a
+moment. Reports recalculates nothing; its only rules are section
+assembly and serialization.
+
+Minimum role: `viewer` for the four market sections, including the
+public-dashboard anonymous visitor. The two personal sections need
+`analyst` and come back omitted with a stated line rather than a 403,
+the way [Insights](INSIGHTS.md) handles alert activity, so the sidebar
+item takes no `hidden` and naming an unreadable section explicitly is
+omitted too.
+
+It adds no table. It does inherit the snapshot write: `situation` and
+`radar` both go through the overview builder, which persists a row when
+state materially changed or fifteen minutes elapsed, exactly as
+[Scans](SCANS.md) and [Opportunity Radar](OPPORTUNITY_RADAR.md) do.
+That is why the read-only sections are composed before the writing ones
+— otherwise a report's `insights` window reads back the snapshot its own
+`situation` section just wrote.
+
+Two routes, `/api/reports` and `/api/reports/download`. The download is
+the one unwrapped response in the app: a browser download of an `okJson`
+envelope is not a report, so a success returns the body alone while an
+error is still wrapped, and a client checks the status code rather than
+the shape. Three formats — Markdown, JSON and CSV — each chosen because
+a pure function can produce it with string concatenation; PDF and
+spreadsheet output would need a dependency and therefore a decision.
 
 See [REPORTS.md](REPORTS.md).
