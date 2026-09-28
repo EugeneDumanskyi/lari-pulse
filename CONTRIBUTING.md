@@ -27,6 +27,7 @@ npm run test:collectors
 npm run test:widgets
 npm run test:services
 npm run test:scheduler
+npm run test:utils
 ```
 
 CI runs the same checks plus `npm run build`. If you change UI flows, also run `npm run test:e2e`.

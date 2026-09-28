@@ -21,7 +21,8 @@
     "test:widgets": "tsx --test src/lib/widgets/*.test.ts src/lib/widgets/crypto/*.test.ts src/lib/widgets/crossMarket/*.test.ts src/lib/widgets/derivatives/*.test.ts",
     "test:services": "tsx --test src/lib/services/*.test.ts src/lib/services/**/*.test.ts",
     "test:scheduler": "tsx --test src/lib/scheduler/*.test.ts",
-    "test:auth": "tsx --test src/lib/auth/*.test.ts"
+    "test:auth": "tsx --test src/lib/auth/*.test.ts",
+    "test:utils": "tsx --test src/lib/utils/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",

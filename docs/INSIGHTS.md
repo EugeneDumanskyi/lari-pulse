@@ -1555,20 +1555,18 @@ route, and `docs/auth.md` with the `alert-activity` role rule.
 
 ### For the maintainer
 
-- **`alert_events.created_at` renders as local time on the Alerts
-  page.** `src/components/alerts/AlertsFoundation.tsx:417` passes
-  `event.createdAt` to `formatLocalDateTime`, which calls
-  `new Date(value)` on the stored `2026-09-19 11:01:12`. With no zone
-  marker that parses as **local** time, so on any instance not running
-  in UTC every alert timestamp on that page is off by the host's offset.
-  This is pre-existing and outside this feature — Insights normalises
-  its own reads with `toIsoTimestamp` — but it is the same bug in the
-  same column, and whether to fix it here, in a separate pull request,
-  or by normalising in `toEventApi`
-  (`src/lib/services/alertService.ts:117`) so every consumer gets ISO,
-  is the maintainer's call. Normalising in `toEventApi` would fix the
-  Alerts page and let Insights drop its own call, at the cost of
-  changing an existing API response's string format.
+- **`alert_events.created_at` rendered as local time on the Alerts
+  page — fixed.** `formatLocalDateTime` called `new Date(value)` on the
+  stored `2026-09-19 11:01:12`, which parses a zone-less string as
+  **local** time, so on any instance not running in UTC every alert
+  timestamp was off by the host's offset. The fix is in the shared
+  formatter rather than in `toEventApi`: `parseTimestamp` in
+  `src/lib/utils/formatDateTime.ts` reads a zone-less timestamp as UTC,
+  so the API string format is unchanged and the same fix covers
+  `acknowledged_at` on the Alerts page and `users.created_at` in
+  Settings. Insights still normalises its own reads with
+  `toIsoTimestamp`, because `replaceIsoDatesWithLocalTime` only matches
+  ISO strings inside a line of text.
 - **Nothing keeps `situation_overviews` populated.** A row is written
   only when someone opens a page that builds an overview and the state
   materially changed or fifteen minutes have passed

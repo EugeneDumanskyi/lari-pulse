@@ -125,6 +125,7 @@ npm run lint
 npm run typecheck
 npm run test:db && npm run test:auth && npm run test:indicators && npm run test:correlations
 npm run test:collectors && npm run test:widgets && npm run test:services && npm run test:scheduler
+npm run test:utils
 
 npx playwright install chromium
 npm run test:e2e
