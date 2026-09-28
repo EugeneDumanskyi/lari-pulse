@@ -27,4 +27,5 @@ jobs:
           npm run test:widgets
           npm run test:services
           npm run test:scheduler
+          npm run test:utils
       - run: npm run build
