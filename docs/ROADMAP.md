@@ -1,8 +1,9 @@
 # Roadmap
 
-What is planned and not yet built. Each feature below links its own
-specification, written before any code and taken to implementation
-depth before the pull request that builds it. Nothing is implemented
+The features that replaced the sidebar placeholders, in the order they
+were built. Each one links its own specification, written before any
+code and taken to implementation depth before the pull request that
+built it. Nothing is implemented
 until a pull request lands and moves a capability out of that spec's
 `Not implemented:` list.
 
@@ -10,9 +11,11 @@ Build order: Watchlist has landed, having sat closest to the existing
 portfolio and alert plumbing, and the dead mock UI cleanup has followed
 it, so every page now has navigation below `lg`. Scans has landed next,
 as the first of the three stateless features, and Insights after it.
-Reports is the one feature left, and it comes last by design: it
-composes what the other surfaces already produce, so every one of its
-sources had to exist before it could be specified against them.
+Reports has landed last, by design: it composes what the other surfaces
+already produce, so every one of its sources had to exist before it
+could be specified against them. Every item below has now landed, and
+the maintainer questions each specification leaves open are the place
+to look for what could come next.
 
 ## 1. Dead mock UI cleanup — landed
 
@@ -107,7 +110,7 @@ as the one thing that would have made the feature silently wrong.
 
 See [INSIGHTS.md](INSIGHTS.md).
 
-## 5. Reports — specified
+## 5. Reports — landed
 
 Composes one self-contained document out of state the app has already
 computed, over a chosen scope and a chosen window, and hands it back as
@@ -127,7 +130,7 @@ the way [Insights](INSIGHTS.md) handles alert activity, so the sidebar
 item takes no `hidden` and naming an unreadable section explicitly is
 omitted too.
 
-It adds no table. It does inherit the snapshot write: `situation` and
+It added no table. It does inherit the snapshot write: `situation` and
 `radar` both go through the overview builder, which persists a row when
 state materially changed or fifteen minutes elapsed, exactly as
 [Scans](SCANS.md) and [Opportunity Radar](OPPORTUNITY_RADAR.md) do.

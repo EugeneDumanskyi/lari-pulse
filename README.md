@@ -12,7 +12,8 @@ It runs as a single Next.js app on SQLite. No Redis, no Postgres, no paid APIs, 
 - **Liquidations and derivatives**: observed forced orders from the Binance futures stream, plus funding, open interest, long/short ratio and basis.
 - **Opportunity Radar**: ranks markets and timeframes by setup quality and by how much attention they deserve.
 - **Chart overlays with reasons**: support/resistance zones, large liquidations and priced watch conditions on the price chart.
-- **Alerts and portfolio** for each analyst: in-app alerts on Situation Overview changes, and a private watchlist with P/L and risk context.
+- **Alerts and portfolio** for each analyst: in-app alerts on Situation Overview changes, and a private portfolio of held and watched assets with P/L and risk context.
+- **Watchlist, Scans, Insights and Reports**: a personal list of symbol and timeframe pairs side by side, explicit filters across every market, a deterministic read of what changed over a window, and a downloadable Markdown, JSON or CSV report composed from all of it.
 - **Multi-user**: first-run setup, admin / analyst / viewer roles, invite links and an optional public read-only dashboard.
 
 ## Quickstart
